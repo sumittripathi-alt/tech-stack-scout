@@ -59,3 +59,19 @@ Code collects and checks the facts; Gemini only extracts and phrases them. The o
 | Won / Lost stages, feedback loop | Vantage Mobility, Pebble Payroll |
 
 Demo rows have `watchlist.is_demo = true`; the weekly cron and the Edge Function never touch them.
+
+## v2: the live system runs on any company, and the team edits it without code
+
+**Any company.** Add one on the Watchlist (paste a website in any form: `https://www.stripe.com/blog` becomes `stripe.com`) or bulk import a list, one `Name, domain` per line. New rows go into a queue that researches three at a time. Companies with no public GitHub or job board are still added; they get a "limited public signal" brief with discovery questions and no invented opener.
+
+**Config, not code.** Settings edits tables the Edge Function reads on every run: `seller_profile` (what you sell, banned phrases, scoring weights, decision window), `tech_dictionary` (the closed vocabulary), `hook_playbooks` (pattern → hypothesis rules), `sources` (switch built-ins off, add any RSS or web page with a `{domain}` URL), `prompt_versions` (writer prompt with versions and rollback). The code verifier still checks every sentence, so editing a prompt cannot make output untrue.
+
+**Window Radar.** A computed layer on weekly history, no AI. For each account: phase (decision, building, post-decision, quiet), weeks into an assumed decision window, the gap between pain and investment, a suggested play, the closest account you already won, and an earlier peer that looked the same and what happened to it next. A "what's working" table compares hooks and phases against your logged outcomes.
+
+**Ask the ledger.** Questions answered only from stored evidence; every sentence carries source ids and unsupported claims are dropped by code.
+
+**Outputs.** Gmail compose link, Slack incoming webhook, generic webhook (Zapier/Make → HubSpot), native HubSpot note (built, untested against a real portal), a Monday digest, and alerts on material change. Targets are stored server-side; the browser can't read URLs or tokens back.
+
+**Hot accounts** refresh daily. **Owner** is a label with a filter, not a login.
+
+Edge Functions: `scout-refresh`, `scout-push`, `scout-digest`, `scout-ask`. Cron: weekly refresh, per-minute queue drain, daily hot refresh, weekly radar, Monday digest.

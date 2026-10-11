@@ -192,6 +192,21 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
 .scrolling{animation:scroll 3.2s linear infinite}
 .flowing{stroke-dasharray:6 6;animation:flow 1.6s linear infinite}
 @media (prefers-reduced-motion:reduce){.paper{animation:none!important}*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+
+.ask{display:flex;flex-direction:column;gap:12px}
+.msg{padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(8,6,24,.4);color:var(--ink-2);max-width:78ch}
+.msg.me{align-self:flex-end;background:rgba(139,92,246,.16);border-color:rgba(139,92,246,.35);color:var(--ink)}
+.msg p{margin:0 0 8px}.msg p:last-child{margin:0}
+.askrow{display:flex;gap:8px}.askrow input{flex:1;min-width:0;background:rgba(8,6,24,.5);border:1px solid var(--line-2);border-radius:11px;color:var(--ink);font:14px var(--f);padding:10px 12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips button{cursor:pointer}
+.kv{display:grid;grid-template-columns:130px 1fr;gap:6px 12px;font-size:13px;color:var(--ink-2)}.kv b{color:var(--ink);font-weight:600}
+.bar{height:8px;border-radius:5px;background:rgba(255,255,255,.07);overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--teal),var(--cyan))}
+.sset{display:grid;gap:16px}.cfg textarea,.cfg input[type=text],.cfg input[type=number],.cfg select{width:100%;background:rgba(8,6,24,.5);border:1px solid var(--line-2);border-radius:10px;color:var(--ink);font:13px var(--f);padding:8px 10px}
+.cfg textarea{min-height:110px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+.cfg label{display:grid;gap:5px;font-size:12px;color:var(--ink-2)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button[aria-pressed=true]{border-color:var(--violet);color:var(--ink);background:rgba(139,92,246,.18)}
+.hot{cursor:pointer;border:0;background:none;font-size:15px;color:var(--muted)}.hot[aria-pressed=true]{color:var(--orange)}
+.note{padding:10px 12px;border-radius:10px;border:1px dashed var(--line-2);color:var(--ink-2);font-size:12.5px}
 </style>
 </head>
 <body>
@@ -206,10 +221,13 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
     <button class="nav" data-view="dashboard" aria-current="page"><svg viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="2" width="7" height="7" rx="2"/><rect x="11" y="2" width="7" height="7" rx="2"/><rect x="2" y="11" width="7" height="7" rx="2"/><rect x="11" y="11" width="7" height="7" rx="2"/></svg>Dashboard</button>
     <button class="nav" data-view="accounts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="3"/><path d="M2 17c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="14.5" cy="6.5" r="2.3"/><path d="M13 12.2c2.7-.4 5 1.4 5 4.8"/></svg>Accounts</button>
     <button class="nav" data-view="watchlist"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h12v15l-6-3.5L4 18z"/></svg>Watchlist<span class="count" id="navCount">0</span></button>
+    <button class="nav" data-view="radar"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4.5"/><path d="M10 10l5-5"/></svg>Window radar<span class="tag">NEW</span></button>
+    <button class="nav" data-view="ask"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h14v9H8l-4 3.5V13H3z"/></svg>Ask the ledger<span class="tag">GEMINI</span></button>
     <div class="sec">Tools</div>
     <button class="nav" data-view="signals"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 10h3l2-6 3 12 2-8 2 4h4"/></svg>Signal ledger</button>
     <button class="nav" data-view="pipeline"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="3"/><path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3M4 4l2 2M14 14l2 2M4 16l2-2M14 6l2-2"/></svg>Pipeline health</button>
     <button class="nav" data-view="prompts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h14M3 9h10M3 14h7"/><path d="M14 13l3 3-3 3" transform="translate(0,-2)"/></svg>Prompt chain<span class="tag">GEMINI</span></button>
+    <button class="nav" data-view="settings"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.6"/><path d="M10 2v2.2M10 15.8V18M2 10h2.2M15.8 10H18M4.3 4.3l1.6 1.6M14.1 14.1l1.6 1.6M4.3 15.7l1.6-1.6M14.1 5.9l1.6-1.6"/></svg>Settings</button>
     <div class="sec">Support</div>
     <button class="nav" data-view="about"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6v.5"/></svg>How it works</button>
     <div class="promo">
@@ -323,7 +341,41 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
         </form>
         <p class="sub">GitHub org, job board and blog feed are found automatically. You can also add or remove rows straight in the Supabase table <code>watchlist</code>.</p>
       </article>
-      <article class="glass card rise"><div class="tw"><table id="wlTable"><thead><tr><th>Company</th><th>GitHub</th><th>Job board</th><th>Blog feed</th><th>Persona</th><th>Status</th><th>Last refresh</th><th></th></tr></thead><tbody></tbody></table></div></article>
+      <article class="glass card rise">
+        <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h12M4 10h12M4 15h8"/></svg></span><h3>Bulk import</h3></div>
+        <div class="cfg" style="display:grid;gap:10px">
+          <label>One company per line: <code>Name, domain</code> (domain optional if you paste a website). Up to 40 at a time.<textarea id="bulkText" placeholder="Stripe, stripe.com&#10;Linear, https://linear.app/&#10;Ramp, www.ramp.com/blog"></textarea></label>
+          <div class="toolbar"><select id="bulkPersona" aria-label="Persona"><option>VP Engineering</option><option>Platform Lead</option><option>DevOps Manager</option><option>Staff Engineer</option></select><select id="bulkStage" aria-label="Stage"><option>Prospect</option><option>Contacted</option><option>Replied</option><option>Meeting</option><option>Opportunity</option></select><button class="btn primary" id="bulkBtn">Import and research</button><span class="sub" id="bulkOut"></span></div>
+        </div>
+        <p class="sub">New rows are queued and researched three at a time, so 40 companies take roughly 15 minutes. Each row shows its status in the table below.</p>
+      </article>
+      <article class="glass card rise"><div class="toolbar"><span class="sub">Owner filter</span><select id="ownerFilter" aria-label="Owner filter"><option value="">All owners</option></select><span class="sub">Name for “My accounts”</span><input id="meName" type="text" placeholder="your name" style="width:150px;background:rgba(8,6,24,.5);border:1px solid var(--line-2);border-radius:10px;color:var(--ink);padding:7px 10px"><span class="sub">Owners are labels, not logins: anyone with the link can edit them.</span></div></article>
+      <article class="glass card rise"><div class="tw"><table id="wlTable"><thead><tr><th>Company</th><th>GitHub</th><th>Job board</th><th>Blog feed</th><th>Hot</th><th>Owner</th><th>Persona</th><th>Status</th><th>Last refresh</th><th></th></tr></thead><tbody></tbody></table></div></article>
+    </section>
+
+
+    <!-- RADAR -->
+    <section data-v="radar" class="view grid" hidden>
+      <div class="ph"><h1>Window radar</h1><span class="sub" id="radSub"></span></div>
+      <div class="grid k3" id="radKpis"></div>
+      <article class="glass card rise"><div class="hd"><h3>Who to call, and why this week</h3><span class="end sub">Computed from weekly history. No AI involved.</span></div><div id="radNote"></div><div class="tw"><table id="radTable"><thead><tr><th>Company</th><th>Phase</th><th>Clock</th><th>Gap</th><th>Window</th><th>Play</th></tr></thead><tbody></tbody></table></div></article>
+      <article class="glass card rise"><div class="hd"><h3>What is actually working for you</h3><span class="end sub" id="liftSub"></span></div><div id="liftBody"></div></article>
+    </section>
+
+    <!-- ASK -->
+    <section data-v="ask" class="view grid" hidden>
+      <div class="ph"><h1>Ask the ledger</h1><span class="sub">Answers use only stored evidence. Every sentence carries source ids; anything that does not check out is dropped.</span></div>
+      <article class="glass card rise">
+        <div class="chips" id="askChips"></div>
+        <div class="ask" id="askLog" style="margin:14px 0"></div>
+        <form class="askrow" id="askForm"><input id="askQ" type="text" autocomplete="off" placeholder="e.g. Which accounts are migrating CI and have a platform team hiring?" aria-label="Question"><button class="btn primary" id="askBtn" type="submit">Ask</button></form>
+      </article>
+    </section>
+
+    <!-- SETTINGS -->
+    <section data-v="settings" class="view grid" hidden>
+      <div class="ph"><h1>Settings</h1><span class="sub">Everything here changes the next refresh. No deploy needed.</span></div>
+      <article class="glass card rise cfg"><div class="tabs" id="setTabs"></div><div id="setBody" style="margin-top:14px"></div></article>
     </section>
 
     <!-- SIGNALS -->
@@ -407,11 +459,12 @@ async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1
 async function loadLive() {
   const acc = await rest(`v_accounts_ws?select=*&is_demo=eq.${isDemoWs()}&order=name`);
   const ids = acc.map(a => a.id); const inIds = ids.length ? `account_id=in.(${ids.join(',')})` : 'account_id=is.null';
-  const [runs, events, fb, snaps] = await Promise.all([
+  const [runs, events, fb, snaps, radar] = await Promise.all([
     rest(`pipeline_runs?select=*&${inIds}&order=started_at.desc&limit=300`),
     rest(`events?select=*&${inIds}&order=created_at.desc&limit=80`),
     rest(`feedback?select=action,created_at,account_id&${inIds}&order=created_at.desc&limit=500`),
     rest(`snapshots?select=account_id,taken_at,ci_median_min,eng_roles,platform_roles&${inIds}&order=taken_at.asc&limit=2000`),
+    rest(`radar?select=*&${inIds}`).catch(() => []),
   ]);
   const snapIds = acc.map(a => a.snapshot_id).filter(Boolean);
   const sigs = snapIds.length ? await rest(`signals?select=*&snapshot_id=in.(${snapIds.join(',')})&order=id`) : [];
@@ -419,7 +472,7 @@ async function loadLive() {
   const accounts = acc.map(a => {
     const hist = snaps.filter(s => s.account_id === a.id);
     return {
-      id: a.id, name: a.name, domain: a.domain, persona: a.persona, stage: a.stage, active: a.active, status: a.refresh_status, error: a.refresh_error,
+      id: a.id, name: a.name, domain: a.domain, persona: a.persona, stage: a.stage, hot: !!a.hot, owner: a.owner || '', radar: radar.find(r => r.account_id === a.id) || null, active: a.active, status: a.refresh_status, error: a.refresh_error,
       last_refreshed: a.last_refreshed_at, github_org: a.github_org, ats: a.ats_provider ? `${a.ats_provider}:${a.ats_slug}` : null, blog: a.blog_feed,
       mapping_confidence: +a.mapping_confidence || 0, tier: a.evidence_tier || 'C', icp: +a.icp_fit || 0, why_now: +a.why_now || 0,
       languages: a.languages || {}, ci: a.ci_median_min != null ? +a.ci_median_min : null, ci_repo: a.ci_repo, eng_roles: a.eng_roles, platform_roles: a.platform_roles,
@@ -447,12 +500,13 @@ async function load() {
   $$('#wsToggle [data-ws]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ws === WS)));
   $('#wsToggle').hidden = !live;
   render();
-  const busy = isLive && M.accounts.some(a => a.status === 'queued' || a.status === 'running');
+  const busy = isLive && M.accounts.some(a => a.status === 'pending' || a.status === 'queued' || a.status === 'running');
   clearTimeout(poll); if (busy) poll = setTimeout(load, 8000);
 }
 
 /* ---------- derived ---------- */
-const act = () => M.accounts.filter(a => a.active !== false);
+let OWN = (() => { try { return localStorage.getItem('scout.owner') || ''; } catch (e) { return ''; } })();
+const act = () => M.accounts.filter(a => a.active !== false && (!OWN || a.owner === OWN));
 const callNow = () => act().filter(a => a.icp >= .65 && a.why_now >= .5);
 const ready = () => act().filter(a => a.brief && a.brief.opener && (a.brief.verifier_passed || M.mode === 'demo'));
 const allSignals = () => act().flatMap(a => a.signals.map(s => ({...s, account: a})));
@@ -647,7 +701,7 @@ function renderAccounts() {
   let rows = act().filter(a => (!ft || a.tier === ft) && (!q || (a.name + ' ' + Object.keys(a.languages || {}).join(' ') + ' ' + a.signals.map(s => s.tech).join(' ') + ' ' + (a.brief?.hook || '')).toLowerCase().includes(q)));
   rows.sort(fs === 'fit' ? (a, b) => b.icp - a.icp : fs === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.why_now * b.icp - a.why_now * a.icp);
   if (!selId || !rows.find(r => r.id === selId)) selId = rows[0]?.id;
-  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${a.status === 'running' || a.status === 'queued' ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td><td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="5"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
+  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${['pending', 'queued', 'running'].includes(a.status) ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td><td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="5"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
   $$('#accTable tbody tr[data-id]').forEach(tr => { const f = () => { selId = tr.dataset.id; renderAccounts(); }; tr.onclick = f; tr.onkeydown = e => e.key === 'Enter' && f(); });
   renderDetail(rows.find(r => r.id === selId));
 }
@@ -668,10 +722,12 @@ function renderDetail(a) {
     ${b.opener ? `<div class="opener" id="openerBox"><span id="openerText">${esc(b.opener)}</span>${citeHTML(b.cites)}</div>
       <div class="toolbar"><button class="btn ok" data-fb="used_as_is">Use as is</button><button class="btn" id="editBtn">Edit</button><button class="btn" id="copyBtn">Copy</button><button class="btn bad" data-fb="rejected">Reject</button></div>`
       : `<div class="empty"><b>No opener generated.</b> There is not enough verified public signal to say something specific and true. Ask instead:<ol>${(b.discovery || []).map(q => `<li>${esc(q)}</li>`).join('')}</ol></div>`}
+    ${actionBar(a)}
     <div class="summary">${summary}</div>
     ${b.opener && (b.discovery || []).length ? `<div><span class="sub">Still ask on the call</span><ol style="margin:6px 0 0;padding-left:18px;color:var(--ink-2)">${b.discovery.map(q => `<li>${esc(q)}</li>`).join('')}</ol></div>` : ''}
     <div style="display:flex;gap:6px;flex-wrap:wrap">${langs}</div>
   </article>
+  ${radarCard(a)}
   <article class="glass card rise" style="animation-delay:.08s">
     <div class="mini">
       <div class="m"><span>CI median${a.ci_repo ? ' · ' + esc(a.ci_repo.split('/')[1] || '') : ''}</span><b>${a.ci != null ? a.ci + ' min' : '—'}</b><svg class="spark" data-s="ci" viewBox="0 0 200 46" preserveAspectRatio="none" style="width:100%;height:36px"></svg></div>
@@ -691,6 +747,7 @@ function renderDetail(a) {
   $('#editBtn') && ($('#editBtn').onclick = () => { const box = $('#openerBox'); const cur = $('#openerText').textContent; box.innerHTML = `<textarea id="openerEdit" aria-label="Edit opener">${esc(cur)}</textarea><div class="toolbar" style="margin-top:8px"><button class="btn primary" id="saveEdit">Save edit</button><button class="btn" id="cancelEdit">Cancel</button></div>`; $('#cancelEdit').onclick = () => renderDetail(a); $('#saveEdit').onclick = () => { const v = $('#openerEdit').value.trim(); sendFeedback(a, 'edited_tone', v); a.brief.opener = v; renderDetail(a); }; });
   $('#persona').onchange = async e => { if (!isLive) { toast('Persona saved for the next refresh (sample mode)'); return; } try { await rest(`watchlist?id=eq.${a.id}`, {method: 'PATCH', body: JSON.stringify({persona: e.target.value}), headers: {Prefer: 'return=minimal'}}); a.persona = e.target.value; toast('Saved. Refresh to rewrite the opener for a ' + e.target.value); } catch (err) { toast('Could not save: ' + err.message); } };
   $('#refreshBtn') && ($('#refreshBtn').onclick = () => refreshAccount(a));
+  wireExtras(a, d);
   $$('[data-wrong]', d).forEach(bn => bn.onclick = async () => { try { await rest('overrides', {method: 'POST', body: JSON.stringify({account_id: a.id, tech: bn.dataset.wrong, forced_state: 'noise', note: 'Marked wrong by AE'}), headers: {Prefer: 'resolution=merge-duplicates,return=minimal'}}); await sendFeedback(a, 'edited_fact', null, true); toast(`${bn.dataset.wrong} will be ignored for ${a.name} from the next refresh on`); bn.disabled = true; } catch (err) { toast('Could not save: ' + err.message); } });
 }
 async function sendFeedback(a, action, edited = null, silent = false) {
@@ -713,8 +770,13 @@ async function refreshAccount(a) {
 /* ---------- watchlist ---------- */
 function renderWatchlist() {
   const A = M.accounts; $('#wlSub').textContent = `${act().length} active · edits here write to the Supabase table watchlist`;
-  const st = a => a.status === 'running' || a.status === 'queued' ? `<span class="status"><span class="spin"></span>${a.status}</span>` : a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">error</span>` : `<span class="pill ok">ok</span>`;
-  $('#wlTable tbody').innerHTML = A.map(a => `<tr><td><b style="color:#EEEDFF">${esc(a.name)}</b><div class="sub">${esc(a.domain)}</div></td><td>${a.github_org ? `<a style="color:var(--cyan)" href="https://github.com/${esc(a.github_org)}" target="_blank" rel="noopener">${esc(a.github_org)}</a>` : '—'}</td><td>${esc(a.ats || '—')}</td><td>${a.blog ? '<span class="pill ok">found</span>' : '—'}</td><td>${esc(a.persona)}</td><td>${a.active === false ? '<span class="pill">removed</span>' : st(a)}</td><td>${ago(a.last_refreshed)}</td><td>${a.active === false ? `<button class="btn" data-restore="${a.id}">Restore</button>` : `<button class="btn bad" data-remove="${a.id}">Remove</button>`}</td></tr>`).join('');
+  const st = a => ['pending', 'queued', 'running'].includes(a.status) ? `<span class="status"><span class="spin"></span>${a.status === 'pending' ? 'waiting' : a.status}</span>` : a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">error</span>` : `<span class="pill ok">ok</span>`;
+  $('#wlTable tbody').innerHTML = A.filter(a => !OWN || a.owner === OWN).map(a => `<tr><td><b style="color:#EEEDFF">${esc(a.name)}</b><div class="sub">${esc(a.domain)}</div></td><td>${a.github_org ? `<a style="color:var(--cyan)" href="https://github.com/${esc(a.github_org)}" target="_blank" rel="noopener">${esc(a.github_org)}</a>` : '—'}</td><td>${esc(a.ats || '—')}</td><td>${a.blog ? '<span class="pill ok">found</span>' : '—'}</td><td><button class="hot" data-hot="${a.id}" aria-pressed="${a.hot}" title="Hot accounts refresh daily instead of weekly" aria-label="Hot account">${a.hot ? '★' : '☆'}</button></td><td><input class="ownin" data-owner="${a.id}" value="${esc(a.owner || '')}" placeholder="—" style="width:96px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:4px 7px;font:12.5px var(--f)"></td><td>${esc(a.persona)}</td><td>${a.active === false ? '<span class="pill">removed</span>' : st(a)}</td><td>${ago(a.last_refreshed)}</td><td>${a.active === false ? `<button class="btn" data-restore="${a.id}">Restore</button>` : `<button class="btn bad" data-remove="${a.id}">Remove</button>`}</td></tr>`).join('');
+  const owners = [...new Set(M.accounts.map(a => a.owner).filter(Boolean))].sort();
+  $('#ownerFilter').innerHTML = '<option value="">All owners</option>' + owners.map(o => `<option ${o === OWN ? 'selected' : ''}>${esc(o)}</option>`).join('');
+  try { $('#meName').value = localStorage.getItem('scout.me') || ''; } catch (e) {}
+  $$('[data-hot]').forEach(b => b.onclick = () => patchAcc(b.dataset.hot, {hot: b.getAttribute('aria-pressed') !== 'true'}, 'hot'));
+  $$('[data-owner]').forEach(i => i.onchange = () => patchAcc(i.dataset.owner, {owner: i.value.trim() || null}, 'owner'));
   $$('[data-remove]').forEach(b => b.onclick = () => setActive(b.dataset.remove, false));
   $$('[data-restore]').forEach(b => b.onclick = () => setActive(b.dataset.restore, true));
 }
@@ -722,17 +784,48 @@ async function setActive(id, on) {
   const a = M.accounts.find(x => x.id === id); if (M.mode !== 'live') { a.active = on; render(); toast((on ? 'Restored ' : 'Removed ') + a.name + ' (sample mode)'); return; }
   try { await rest(`watchlist?id=eq.${id}`, {method: 'PATCH', body: JSON.stringify({active: on}), headers: {Prefer: 'return=minimal'}}); toast((on ? 'Restored ' : 'Removed ') + a.name); load(); } catch (e) { toast('Could not update: ' + e.message); }
 }
+const normDomain = v => String(v || '').trim().toLowerCase().replace(/^[a-z]+:\/\//, '').replace(/^www\./, '').replace(/[\/?#:].*$/, '');
+const validDomain = d => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d);
+const niceName = d => { const stem = d.split('.')[0].replace(/-/g, ' '); return stem.replace(/\b\w/g, c => c.toUpperCase()); };
+async function dupInfo(domain) { try { const r = await rest(`watchlist?select=name,active,is_demo&domain=eq.${encodeURIComponent(domain)}&limit=1`); return r[0] || null; } catch (e) { return null; } }
 $('#addForm').addEventListener('submit', async e => {
   e.preventDefault();
-  const name = $('#fName').value.trim(), domain = $('#fDomain').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
-  if (!name || !domain.includes('.')) { toast('Enter a company name and a domain like posthog.com'); return; }
+  const domain = normDomain($('#fDomain').value); const name = $('#fName').value.trim() || niceName(domain);
+  if (!name || !validDomain(domain)) { toast('Enter the company website, like posthog.com or https://www.posthog.com/blog'); return; }
   if (M.mode === 'live' && isDemoWs()) { toast('The demo workspace is read-only for new companies. Switch to Live to add a real one.'); return; }
   if (M.mode !== 'live') { M.accounts.push({id: 'tmp' + Date.now(), name, domain, persona: $('#fPersona').value, stage: $('#fStage').value, active: true, status: 'queued', tier: 'C', icp: 0, why_now: 0, languages: {}, signals: [], brief: null, history: {dates: []}, diff: []}); render(); toast(`${name} added (sample mode: not researched)`); e.target.reset(); return; }
   $('#addBtn').disabled = true;
-  try { await rest('watchlist', {method: 'POST', body: JSON.stringify({name, domain, persona: $('#fPersona').value, stage: $('#fStage').value}), headers: {Prefer: 'return=minimal'}}); toast(`${name} added. Research starts now; it takes about a minute.`); e.target.reset(); load(); }
-  catch (err) { toast(err.message.includes('duplicate') ? 'That domain is already on the watchlist' : 'Could not add: ' + err.message); }
+  try {
+    const ex = await dupInfo(domain);
+    if (ex) { toast(ex.active === false ? `${ex.name} is on the list but removed. Use Restore in the table below.` : `${ex.name} (${domain}) is already on the watchlist.`); $('#addBtn').disabled = false; return; }
+    await rest('watchlist', {method: 'POST', body: JSON.stringify({name, domain, persona: $('#fPersona').value, stage: $('#fStage').value, owner: ($('#meName')?.value || '').trim() || null}), headers: {Prefer: 'return=minimal'}});
+    toast(`${name} added. Research starts now; it takes about a minute.`); e.target.reset(); load();
+  } catch (err) { toast(/duplicate|23505/.test(err.message) ? `${domain} is already on the watchlist.` : 'Could not add: ' + err.message); }
   $('#addBtn').disabled = false;
 });
+$('#fDomain').addEventListener('blur', () => { const d = normDomain($('#fDomain').value); if (d) { $('#fDomain').value = d; if (!$('#fName').value.trim() && validDomain(d)) $('#fName').value = niceName(d); } });
+
+/* bulk import */
+$('#bulkBtn').onclick = async () => {
+  if (M.mode !== 'live') { toast('Bulk import needs the live deployment'); return; }
+  if (isDemoWs()) { toast('Switch to Live to import real companies'); return; }
+  const lines = $('#bulkText').value.split(/\n+/).map(x => x.trim()).filter(Boolean).slice(0, 40); const rows = [], bad = [];
+  for (const ln of lines) {
+    const parts = ln.split(/[,\t;|]/).map(x => x.trim()).filter(Boolean); let name = '', dom = '';
+    if (parts.length >= 2) { name = parts[0]; dom = normDomain(parts[1]); } else if (parts.length === 1) { dom = normDomain(parts[0]); name = niceName(dom); }
+    if (!validDomain(dom)) { bad.push(ln); continue; } if (rows.some(r => r.domain === dom)) continue;
+    rows.push({name: name || niceName(dom), domain: dom, persona: $('#bulkPersona').value, stage: $('#bulkStage').value, owner: ($('#meName')?.value || '').trim() || null});
+  }
+  if (!rows.length) { toast(bad.length ? 'Each line needs a website, like “Stripe, stripe.com”' : 'Paste at least one company'); return; }
+  $('#bulkBtn').disabled = true;
+  try {
+    const done = await rest('watchlist?on_conflict=domain', {method: 'POST', body: JSON.stringify(rows), headers: {Prefer: 'resolution=ignore-duplicates,return=representation'}});
+    const skipped = rows.length - done.length;
+    $('#bulkOut').textContent = `${done.length} queued${skipped ? `, ${skipped} already on the list` : ''}${bad.length ? `, ${bad.length} line${bad.length > 1 ? 's' : ''} skipped (no website)` : ''}`;
+    toast(`${done.length} companies queued for research`); if (!bad.length) $('#bulkText').value = ''; load();
+  } catch (err) { toast('Import failed: ' + err.message); }
+  $('#bulkBtn').disabled = false;
+};
 
 /* ---------- signals ---------- */
 function kpiCards(target, items) { $(target).innerHTML = items.map((k, i) => `<article class="glass card rise" style="animation-delay:${i * .06}s"><div class="hd"><h3>${k.l}</h3></div><div class="big">${k.v}</div><p class="sub">${k.d}</p></article>`).join(''); }
@@ -809,7 +902,7 @@ function renderAbout() {
 
 /* ---------- routing ---------- */
 function go(v) { view = v; $$('.nav').forEach(n => { if (n.dataset.view === v) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); }); $$('.view').forEach(s => s.hidden = s.dataset.v !== v); $('#side').classList.remove('open'); render(); try { history.replaceState(null, '', '#' + v); } catch (e) {} window.scrollTo({top: 0}); }
-function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); $('#navCount').textContent = act().length; }
+function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
 $$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
 $('#burger').onclick = () => $('#side').classList.toggle('open');
@@ -818,6 +911,160 @@ $('#q').addEventListener('input', () => { if (view !== 'accounts') go('accounts'
 ['#fTier', '#fSort'].forEach(s => $(s).addEventListener('change', renderAccounts));
 document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#q').focus(); } });
 $('#exportBtn').onclick = () => { const a = [...act()].sort((x, y) => y.why_now * y.icp - x.why_now * x.icp)[0]; if (!a?.brief) { toast('No brief yet'); return; } const txt = `${a.name}\n\n${(a.brief.summary || []).map(p => p.map(s => s.text).join(' ')).join('\n\n')}\n\nOpener: ${a.brief.opener || '—'}`; navigator.clipboard?.writeText(txt).then(() => toast(`Copied ${a.name}'s brief`), () => toast('Clipboard is blocked here')); };
+
+
+/* ---------- account edits ---------- */
+async function patchAcc(id, body, what) {
+  const a = M.accounts.find(x => x.id === id); if (!a) return;
+  if (M.mode !== 'live' || a.demo) { Object.assign(a, body); render(); toast('Saved in this view only (demo data is read-only)'); return; }
+  try { await rest(`watchlist?id=eq.${id}`, {method: 'PATCH', body: JSON.stringify(body), headers: {Prefer: 'return=minimal'}}); Object.assign(a, body); toast(what === 'hot' ? (body.hot ? `${a.name} is hot: refreshed daily` : `${a.name} back to weekly`) : what === 'stage' ? `${a.name} moved to ${body.stage}` : 'Saved'); render(); if (what === 'stage') { try { await rest('rpc/recompute_radar', {method: 'POST', body: '{}'}); } catch (e) {} } }
+  catch (e) { toast('Could not save: ' + e.message); }
+}
+$('#ownerFilter').onchange = e => { OWN = e.target.value; try { localStorage.setItem('scout.owner', OWN); } catch (err) {} selId = null; render(); toast(OWN ? `Showing only ${OWN}'s accounts everywhere` : 'Showing all accounts'); };
+$('#meName').onchange = e => { try { localStorage.setItem('scout.me', e.target.value.trim()); } catch (err) {} };
+
+/* ---------- window radar ---------- */
+const PHASE = {decision: ['Decision window', 'ok'], building: ['Building', 'warn'], post_decision: ['Post-decision', ''], quiet: ['Quiet', ''], customer: ['Customer', 'hook'], closed: ['Closed-lost', 'bad']};
+const GAP = {under_invested: 'Under-invested', budget_forming: 'Budget forming', owned_pain: 'Owned pain', owner_unknown: 'Owner unknown', no_pain: 'No pain visible'};
+const radarOf = a => a.radar || null;
+function renderRadar() {
+  const live2 = M.mode === 'live'; const list = act().map(a => ({a, r: radarOf(a)})).filter(x => x.r);
+  $('#radSub').textContent = live2 ? `${list.length} accounts scored · recomputed every Monday and after each stage change` : 'Needs the live deployment';
+  const dec = list.filter(x => x.r.phase === 'decision'), soon = dec.filter(x => (x.r.metrics?.window_remaining ?? 99) <= 3), under = list.filter(x => x.r.gap === 'under_invested' && ['decision', 'building'].includes(x.r.phase));
+  kpiCards('#radKpis', [{l: 'In a decision window', v: dec.length, d: 'the tooling choice is being made now'}, {l: 'Closing within 3 weeks', v: soon.length, d: 'assumed window ' + (list[0]?.r.metrics?.window_weeks ?? 10) + ' weeks, editable in Settings'}, {l: 'Under-invested', v: under.length, d: 'pain is growing, platform team is not'}]);
+  const thin = list.length && list.every(x => (x.r.metrics?.snapshots || 0) < 2);
+  $('#radNote').innerHTML = !live2 ? '<div class="note">The radar reads weekly history from Supabase. Open the live site, or the demo workspace there, to see it.</div>' : thin ? '<div class="note">These accounts have one snapshot so far. The radar reads trends, so it starts to say something after two or more weekly refreshes. Switch to the Demo workspace to see it with eight weeks of history.</div>' : '';
+  const order = list.slice().sort((x, y) => (+y.r.window_score) - (+x.r.window_score));
+  $('#radTable tbody').innerHTML = order.map(({a, r}) => { const p = PHASE[r.phase] || [r.phase, ''], w = r.metrics?.window_weeks || 10, wk = r.weeks_in_phase;
+    return `<tr class="click" data-id="${a.id}" tabindex="0"><td><b style="color:#EEEDFF">${esc(a.name)}</b><div class="sub">${esc(a.stage || 'no stage')}</div></td><td><span class="pill ${p[1]}">${p[0]}</span></td><td style="min-width:120px">${wk != null ? `<div class="sub" style="margin-bottom:4px">week ${wk} of ${w}</div><div class="bar"><i style="width:${Math.min(100, wk / w * 100)}%"></i></div>` : '—'}</td><td>${esc(GAP[r.gap] || r.gap)}</td><td class="num">${(+r.window_score).toFixed(2)}</td><td style="white-space:normal;min-width:260px;max-width:420px">${esc(r.play || '')}</td></tr>`; }).join('') || '<tr><td colspan="6" class="sub">No scored accounts yet.</td></tr>';
+  $$('#radTable tbody tr[data-id]').forEach(tr => { const f = () => { selId = tr.dataset.id; go('accounts'); }; tr.onclick = f; tr.onkeydown = e => e.key === 'Enter' && f(); });
+  renderLift();
+}
+function renderLift() {
+  const POS = ['Replied', 'Meeting', 'Opportunity', 'Won']; const pool = act().filter(a => a.stage && a.stage !== 'Prospect');
+  const rate = arr => arr.length ? arr.filter(a => POS.includes(a.stage)).length / arr.length : 0; const base = rate(pool);
+  const groups = (key, label) => { const m = {}; pool.forEach(a => { const k = key(a); if (k) (m[k] ||= []).push(a); }); return Object.entries(m).map(([k, arr]) => ({k: label(k), n: arr.length, pos: arr.filter(a => POS.includes(a.stage)).length, rate: rate(arr)})).sort((x, y) => y.rate - x.rate); };
+  const byHook = groups(a => a.brief?.hook, k => k.replace(/_/g, ' ')), byPhase = groups(a => a.radar?.phase, k => (PHASE[k] || [k])[0]);
+  $('#liftSub').textContent = pool.length ? `${pool.length} contacted accounts · overall positive rate ${pct(base)}` : 'Waiting for outcomes';
+  const tbl = (title, rows) => `<div><span class="sub">${title}</span><div class="tw"><table><thead><tr><th>Group</th><th>Contacted</th><th>Positive</th><th>Rate</th><th>vs overall</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.k)}</td><td class="num">${r.n}</td><td class="num">${r.pos}</td><td class="num">${pct(r.rate)}</td><td class="num">${r.n < 3 ? '<span class="sub">too few</span>' : (r.rate - base >= 0 ? '+' : '') + Math.round((r.rate - base) * 100) + ' pts'}</td></tr>`).join('') || '<tr><td colspan="5" class="sub">Nothing yet</td></tr>'}</tbody></table></div></div>`;
+  $('#liftBody').innerHTML = !pool.length ? '<div class="note">Move accounts through the stages (Contacted, Replied, Meeting, Opportunity, Won, Lost) on the account page. Once a handful have outcomes, this shows which hooks and which windows actually get replies for you.</div>'
+    : `<div class="grid r2" style="gap:16px">${tbl('By opener hook', byHook)}${tbl('By window phase at the time', byPhase)}</div>${pool.length < 8 ? '<p class="sub">Fewer than 8 contacted accounts, so treat these as hints, not conclusions.</p>' : ''}`;
+}
+function radarCard(a) {
+  const r = a.radar; if (!r) return '';
+  const p = PHASE[r.phase] || [r.phase, '']; const w = r.metrics?.window_weeks || 10, wk = r.weeks_in_phase;
+  const ref = r.reference ? `<b>Closest win:</b> ${esc(r.reference.name)} (${Math.round(r.reference.similarity * 100)}% same stack: ${esc((r.reference.shared || []).slice(0, 4).join(', '))}). ${esc(r.reference.story || '')}.` : '';
+  const look = r.lookalike ? `<b>Looked like this ${r.lookalike.weeks_ahead} weeks ago:</b> ${esc(r.lookalike.name)}${r.lookalike.stage ? ` (now ${esc(r.lookalike.stage)})` : ''}. What happened next: ${esc((r.lookalike.next || []).join('; ') || 'nothing notable')}.` : '';
+  return `<article class="glass card rise" style="animation-delay:.04s"><div class="hd"><h3>Window radar</h3><span class="end"><span class="pill ${p[1]}">${p[0]}</span><span class="pill">${esc(GAP[r.gap] || r.gap)}</span><span class="pill hook">score ${(+r.window_score).toFixed(2)}</span></span></div>
+    <p style="margin:0;color:var(--ink);font-size:15px">${esc(r.play || '')}</p>
+    ${wk != null ? `<div><div class="sub" style="margin-bottom:4px">Week ${wk} of an assumed ${w}-week decision window</div><div class="bar"><i style="width:${Math.min(100, wk / w * 100)}%"></i></div></div>` : ''}
+    <ul style="margin:0;padding-left:18px;color:var(--ink-2)">${(r.drivers || []).map(d => `<li>${esc(d)}</li>`).join('')}</ul>
+    ${ref ? `<p class="sub" style="margin:0;display:block">${ref}</p>` : ''}${look ? `<p class="sub" style="margin:0;display:block">${look}</p>` : ''}</article>`;
+}
+function actionBar(a) {
+  const b = a.brief || {};
+  return `<div class="toolbar">${b.opener ? '<button class="btn" id="gmailBtn">Open in Gmail</button><button class="btn" id="pushBtn">Send to Slack / CRM</button>' : ''}<select id="stageSel" aria-label="Stage">${['Prospect', 'Contacted', 'Replied', 'Meeting', 'Opportunity', 'Won', 'Lost'].map(x => `<option ${x === a.stage ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="hot" id="hotBtn" aria-pressed="${!!a.hot}" title="Hot accounts refresh daily">${a.hot ? '★ hot' : '☆ hot'}</button></div>`;
+}
+function wireExtras(a, d) {
+  $('#gmailBtn') && ($('#gmailBtn').onclick = () => { const b = a.brief; const body = `${b.opener}\n\n${(b.summary || []).map(p => p.map(x => x.text).join(' ')).join('\n\n')}`; const su = `Quick thought on ${a.name}'s engineering setup`; window.open('https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(su) + '&body=' + encodeURIComponent(body), '_blank', 'noopener'); });
+  $('#pushBtn') && ($('#pushBtn').onclick = async () => {
+    if (M.mode !== 'live' || a.demo) { toast('Pushing works on live accounts. Add a Slack or webhook target in Settings first.'); return; }
+    try { const r = await fetch(CFG.url + '/functions/v1/scout-push', {method: 'POST', headers: H(), body: JSON.stringify({account_id: a.id, mode: 'push'})}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); if (!j.results?.length) toast('No output targets yet. Add one in Settings, Outputs.'); else toast(j.results.map(x => `${x.label || 'target'}: ${x.ok ? 'sent' : x.error}`).join(' · ')); } catch (e) { toast('Push failed: ' + e.message); }
+  });
+  $('#stageSel') && ($('#stageSel').onchange = e => patchAcc(a.id, {stage: e.target.value}, 'stage'));
+  $('#hotBtn') && ($('#hotBtn').onclick = () => patchAcc(a.id, {hot: !a.hot}, 'hot'));
+}
+
+
+/* ---------- ask the ledger ---------- */
+const askLog = [];
+const ASK_EX = ['Which accounts should I call first and why?', 'Who is migrating CI or cloud right now?', 'Which accounts have a platform team hiring but no clear owner?', 'What changed this week?'];
+function renderAsk() {
+  $('#askChips').innerHTML = ASK_EX.map(q => `<button class="pill hook" type="button">${esc(q)}</button>`).join('');
+  $$('#askChips button').forEach(b => b.onclick = () => { $('#askQ').value = b.textContent; $('#askForm').requestSubmit(); });
+  drawAsk();
+}
+function drawAsk() {
+  $('#askLog').innerHTML = askLog.map(m => m.me ? `<div class="msg me">${esc(m.text)}</div>` : `<div class="msg">${m.pending ? '<span class="spin" style="display:inline-block"></span> Reading the ledger…' : m.error ? `<span class="pill bad">${esc(m.error)}</span>` : m.answer.map(x => `<p>${esc(x.text)} ${(x.cites || []).map(c => { const [A, f] = c.split('.'); const nm = m.accounts?.[A] || A; return `<span class="cite" title="${esc(nm)}: ledger ${esc(f)}">${esc(short(nm))}·${esc(f)}</span>`; }).join('')}</p>`).join('') + (m.dropped ? `<p class="sub">${m.dropped} unsupported claim${m.dropped > 1 ? 's were' : ' was'} dropped by the verifier.</p>` : '')}</div>`).join('') || '<div class="note">Ask about the watchlist in plain words. Nothing is answered from memory: if the ledger does not say it, the answer says so.</div>';
+}
+$('#askForm').addEventListener('submit', async e => {
+  e.preventDefault(); const q = $('#askQ').value.trim(); if (q.length < 3) return;
+  if (M.mode !== 'live') { toast('Ask the ledger runs on the live deployment (it works on the Demo workspace there too)'); return; }
+  askLog.push({me: true, text: q}); const m = {pending: true}; askLog.push(m); $('#askQ').value = ''; $('#askBtn').disabled = true; drawAsk();
+  try { const r = await fetch(CFG.url + '/functions/v1/scout-ask', {method: 'POST', headers: H(), body: JSON.stringify({question: q, workspace: WS})}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); Object.assign(m, j, {pending: false}); }
+  catch (err) { Object.assign(m, {pending: false, error: 'Could not answer: ' + err.message}); }
+  $('#askBtn').disabled = false; drawAsk();
+});
+
+/* ---------- settings ---------- */
+let setTab = 'profile';
+const TABS = [['profile', 'Seller profile'], ['tech', 'Technologies'], ['play', 'Hook playbooks'], ['src', 'Sources'], ['prompt', 'Writer prompt'], ['out', 'Outputs']];
+const lines = t => String(t || '').split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
+async function renderSettings() {
+  $('#setTabs').innerHTML = TABS.map(([k, l]) => `<button class="btn" data-tab="${k}" aria-pressed="${k === setTab}">${l}</button>`).join('');
+  $$('#setTabs [data-tab]').forEach(b => b.onclick = () => { setTab = b.dataset.tab; renderSettings(); });
+  const body = $('#setBody');
+  if (M.mode !== 'live') { body.innerHTML = '<div class="note">Settings are stored in Supabase, so they are editable on the live deployment.</div>'; return; }
+  body.innerHTML = '<span class="spin" style="display:inline-block"></span>';
+  try { await ({profile: setProfile, tech: setTech, play: setPlay, src: setSrc, prompt: setPrompt, out: setOut})[setTab](body); } catch (e) { body.innerHTML = `<div class="note">Could not load: ${esc(e.message)}</div>`; }
+}
+const jsonOr = (t, fb) => { try { return JSON.parse(t); } catch (e) { return fb; } };
+async function save(path, method, obj, ok) { try { await rest(path, {method, body: JSON.stringify(obj), headers: {Prefer: 'resolution=merge-duplicates,return=minimal'}}); toast(ok || 'Saved. Applies from the next refresh.'); return true; } catch (e) { toast('Could not save: ' + e.message); return false; } }
+async function setProfile(body) {
+  const [p] = await rest('seller_profile?id=eq.default&select=*'); const pr = p || {};
+  body.innerHTML = `<div class="sset"><label>What you sell (the writer uses this sentence)<textarea id="spProd" style="min-height:70px;font-family:var(--f);font-size:13px">${esc(pr.product || '')}</textarea></label>
+  <label>Banned words and phrases (one per line). The verifier rejects any draft containing them.<textarea id="spBan">${esc((pr.banned_phrases || []).join('\n'))}</textarea></label>
+  <div class="grid k3" style="gap:12px"><label>Assumed decision window, weeks<input type="number" id="spWin" min="2" max="40" value="${pr.decision_window_weeks ?? 10}"></label><label>Alert on hooks (comma separated)<input type="text" id="spAl" value="${esc((pr.alert_hooks || []).join(', '))}"></label><label>Outcome stages counted as positive<input type="text" id="spOut" value="${esc((pr.outcome_stages || []).join(', '))}"></label></div>
+  <label>Scoring weights (JSON): how ICP fit and why-now are computed<textarea id="spW">${esc(JSON.stringify(pr.icp_weights || {}, null, 2))}</textarea></label>
+  <div class="toolbar"><button class="btn primary" id="spSave">Save profile</button></div></div>`;
+  $('#spSave').onclick = async () => { const w = jsonOr($('#spW').value, null); if (!w) { toast('Scoring weights are not valid JSON'); return; } if (await save('seller_profile?id=eq.default', 'PATCH', {product: $('#spProd').value.trim(), banned_phrases: lines($('#spBan').value), decision_window_weeks: +$('#spWin').value || 10, alert_hooks: lines($('#spAl').value), outcome_stages: lines($('#spOut').value), icp_weights: w, updated_at: new Date().toISOString()})) { try { await rest('rpc/recompute_radar', {method: 'POST', body: '{}'}); } catch (e) {} } };
+}
+async function setTech(body) {
+  const rows = await rest('tech_dictionary?select=*&order=category,tech');
+  body.innerHTML = `<p class="sub">The closed vocabulary. The extractor only recognises these, and the writer is only allowed to name these. Add your competitor or a niche tool here and it is picked up on the next refresh.</p>
+  <form class="form" id="tdForm"><label>Technology<input id="tdT" type="text" placeholder="bazel" required></label><label>Category<select id="tdC">${['cloud', 'orchestration', 'ci', 'build', 'data', 'observability', 'infra', 'language'].map(c => `<option>${c}</option>`).join('')}</select></label><label>Also written as (comma separated)<input id="tdA" type="text" placeholder="bazelisk, bazel build"></label><button class="btn primary" type="submit">Add</button></form>
+  <div class="tw" style="margin-top:12px;max-height:360px;overflow:auto"><table><thead><tr><th>On</th><th>Technology</th><th>Category</th><th>Aliases</th></tr></thead><tbody>${rows.map(r => `<tr><td><input type="checkbox" data-t="${esc(r.tech)}" ${r.enabled ? 'checked' : ''}></td><td>${esc(r.tech)}</td><td>${esc(r.category)}</td><td style="white-space:normal">${esc((r.aliases || []).join(', '))}</td></tr>`).join('')}</tbody></table></div>`;
+  $('#tdForm').onsubmit = async e => { e.preventDefault(); if (await save('tech_dictionary?on_conflict=tech', 'POST', {tech: $('#tdT').value.trim().toLowerCase(), category: $('#tdC').value, aliases: lines($('#tdA').value).map(x => x.toLowerCase()), enabled: true})) renderSettings(); };
+  $$('[data-t]', body).forEach(c => c.onchange = () => save(`tech_dictionary?tech=eq.${encodeURIComponent(c.dataset.t)}`, 'PATCH', {enabled: c.checked}));
+}
+async function setPlay(body) {
+  const rows = await rest('hook_playbooks?select=*&order=sort');
+  const tmpl = {slug: 'my_playbook', hook_type: 'scale_threshold', label: 'My playbook', friction: 'describe the problem in one plain sentence', rule: {all: [{m: 'has', v: ['kubernetes']}, {m: 'platform_roles', op: '>=', v: 2}]}, evidence: {kind: 'tech', techs: ['kubernetes'], max: 3}, base: 0.5, metric: null, per: 0, enabled: true, sort: 90};
+  body.innerHTML = `<p class="sub">A playbook turns a pattern in the evidence into a hypothesis the writer can use. Conditions: <code>ci</code>, <code>platform_roles</code>, <code>eng_roles</code>, <code>active30</code>, <code>public_repos</code> (with op and v), <code>migrating</code>, <code>has</code> (any of a technology list), <code>blog_match</code> (regex), <code>no_other</code>. A hypothesis is dropped if it has no citable fact.</p>
+  <div style="display:grid;gap:10px">${rows.map(r => `<details class="glass" style="padding:10px 12px;border-radius:12px"><summary style="cursor:pointer;color:var(--ink)"><input type="checkbox" data-pe="${esc(r.slug)}" ${r.enabled ? 'checked' : ''} aria-label="enabled"> <b>${esc(r.label)}</b> <span class="pill hook">${esc(r.hook_type)}</span></summary><textarea data-pj="${esc(r.slug)}" style="margin-top:10px">${esc(JSON.stringify({friction: r.friction, rule: r.rule, evidence: r.evidence, base: +r.base, metric: r.metric, per: +r.per, sort: r.sort, label: r.label, hook_type: r.hook_type}, null, 2))}</textarea><div class="toolbar" style="margin-top:8px"><button class="btn" data-ps="${esc(r.slug)}">Save</button></div></details>`).join('')}
+  <details class="glass" style="padding:10px 12px;border-radius:12px"><summary style="cursor:pointer;color:var(--ink)"><b>+ New playbook</b></summary><textarea id="pbNew" style="margin-top:10px">${esc(JSON.stringify(tmpl, null, 2))}</textarea><div class="toolbar" style="margin-top:8px"><button class="btn primary" id="pbAdd">Add playbook</button></div></details></div>`;
+  $$('[data-pe]', body).forEach(c => { c.onclick = ev => ev.stopPropagation(); c.onchange = () => save(`hook_playbooks?slug=eq.${encodeURIComponent(c.dataset.pe)}`, 'PATCH', {enabled: c.checked}); });
+  $$('[data-ps]', body).forEach(b => b.onclick = () => { const j = jsonOr($(`[data-pj="${b.dataset.ps}"]`, body).value, null); if (!j) { toast('That is not valid JSON'); return; } save(`hook_playbooks?slug=eq.${encodeURIComponent(b.dataset.ps)}`, 'PATCH', j); });
+  $('#pbAdd').onclick = async () => { const j = jsonOr($('#pbNew').value, null); if (!j || !j.slug || !j.rule?.all) { toast('Needs valid JSON with a slug and rule.all'); return; } if (await save('hook_playbooks', 'POST', j)) renderSettings(); };
+}
+async function setSrc(body) {
+  const rows = await rest('sources?select=*&order=kind,slug');
+  body.innerHTML = `<p class="sub">Where evidence comes from. Switch the built-in ones off, or add any page or feed that carries a company-specific URL. The text is scanned with the technology dictionary, and every hit becomes a cited fact.</p>
+  <div class="tw"><table><thead><tr><th>On</th><th>Source</th><th>Type</th><th>URL template</th></tr></thead><tbody>${rows.map(r => `<tr><td><input type="checkbox" data-s="${esc(r.slug)}" ${r.enabled ? 'checked' : ''}></td><td><b style="color:#EEEDFF">${esc(r.label)}</b><div class="sub">${esc(r.note || '')}</div></td><td>${r.kind === 'builtin' ? 'built in' : esc(r.parser)}</td><td style="white-space:normal"><code>${esc(r.url_template || '')}</code></td></tr>`).join('')}</tbody></table></div>
+  <form class="form" id="srForm" style="margin-top:12px"><label>Name<input id="srL" type="text" required placeholder="Changelog"></label><label>Short id<input id="srS" type="text" required placeholder="changelog2"></label><label>Format<select id="srP"><option value="html">Web page</option><option value="rss">RSS / Atom feed</option></select></label><label>URL (use {domain}, {name}, {github_org})<input id="srU" type="text" required placeholder="https://{domain}/changelog"></label><button class="btn primary" type="submit">Add source</button></form>`;
+  $$('[data-s]', body).forEach(c => c.onchange = () => save(`sources?slug=eq.${encodeURIComponent(c.dataset.s)}`, 'PATCH', {enabled: c.checked}));
+  $('#srForm').onsubmit = async e => { e.preventDefault(); const u = $('#srU').value.trim(); if (!/^https:\/\//.test(u)) { toast('Use an https:// address'); return; } if (await save('sources', 'POST', {slug: $('#srS').value.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'), label: $('#srL').value.trim(), kind: 'custom', parser: $('#srP').value, url_template: u, enabled: true, note: 'Added in the console'})) renderSettings(); };
+}
+async function setPrompt(body) {
+  const rows = await rest('prompt_versions?role=eq.writer&select=*&order=id.desc'); const act2 = rows.find(r => r.active) || rows[0] || {};
+  body.innerHTML = `<p class="sub">The instruction the writer receives. Placeholders: <code>{{product}}</code>, <code>{{persona}}</code>, <code>{{banned}}</code>. The code verifier still checks every sentence, so a bad prompt cannot make the output untrue; it can only make it fail more often.</p>
+  <textarea id="pmT" style="min-height:300px">${esc(act2.system_text || '')}</textarea><div class="toolbar" style="margin-top:8px"><input id="pmN" type="text" placeholder="what changed (optional)" style="flex:1;background:rgba(8,6,24,.5);border:1px solid var(--line-2);border-radius:10px;color:var(--ink);padding:8px 10px"><button class="btn primary" id="pmS">Save as new version</button></div>
+  <div class="tw" style="margin-top:12px"><table><thead><tr><th>Version</th><th>Notes</th><th>Created</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.version)} ${r.active ? '<span class="pill ok">active</span>' : ''}</td><td style="white-space:normal">${esc(r.notes || '')}</td><td>${fmtDate(r.created_at)}</td><td>${r.active ? '' : `<button class="btn" data-act="${r.id}">Make active</button>`}</td></tr>`).join('')}</tbody></table></div>`;
+  $('#pmS').onclick = async () => { const t = $('#pmT').value.trim(); if (t.length < 80 || !t.includes('FACT_SHEET')) { toast('The prompt has to mention FACT_SHEET so the writer stays on the evidence'); return; } try { const v = await rest('rpc/save_prompt', {method: 'POST', body: JSON.stringify({p_role: 'writer', p_system: t, p_notes: $('#pmN').value.trim() || null})}); toast(`Saved as ${v}. Active from the next refresh.`); renderSettings(); } catch (e) { toast('Could not save: ' + e.message); } };
+  $$('[data-act]', body).forEach(b => b.onclick = async () => { try { await rest('rpc/activate_prompt', {method: 'POST', body: JSON.stringify({p_id: +b.dataset.act})}); toast('Version activated'); renderSettings(); } catch (e) { toast('Could not activate: ' + e.message); } });
+}
+async function setOut(body) {
+  const rows = await rest('v_output_targets?select=*&order=created_at');
+  body.innerHTML = `<div class="note" style="margin-bottom:12px"><b>How output works.</b> “Send to Slack / CRM” on an account, the Monday digest and material-change alerts go to every enabled target below. A <b>webhook</b> target works with Zapier or Make, which can create the HubSpot note or task for you. The <b>HubSpot</b> target writes a note straight to the company with that domain; it is built but has not been tested against a real HubSpot portal. Targets are saved server-side: the address and token cannot be read back from this page.</div>
+  <div class="tw"><table><thead><tr><th>On</th><th>Target</th><th>Where</th><th>Last result</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td><input type="checkbox" data-o="${r.id}" ${r.enabled ? 'checked' : ''}></td><td><b style="color:#EEEDFF">${esc(r.label)}</b><div class="sub">${esc(r.kind)}</div></td><td>${esc(r.host || 'HubSpot API')}${r.has_token ? ' · token saved' : ''}</td><td>${r.last_at ? esc(r.last_status || '') + ' · ' + ago(r.last_at) : '—'}</td><td><button class="btn" data-ot="${r.id}">Send test</button> <button class="btn bad" data-od="${r.id}">Remove</button></td></tr>`).join('') || '<tr><td colspan="5" class="sub">No targets yet.</td></tr>'}</tbody></table></div>
+  <form class="form" id="otForm" style="margin-top:12px"><label>Kind<select id="otK"><option value="slack">Slack incoming webhook</option><option value="webhook">Generic webhook (Zapier / Make)</option><option value="hubspot">HubSpot note (untested)</option></select></label><label>Label<input id="otL" type="text" required placeholder="#sales-alerts"></label><label>URL (not needed for HubSpot)<input id="otU" type="text" placeholder="https://hooks.slack.com/services/…"></label><label>Token (webhook bearer, or HubSpot private-app token)<input id="otT" type="password" autocomplete="off"></label><button class="btn primary" type="submit">Add target</button></form>
+  <div class="toolbar" style="margin-top:12px"><button class="btn" id="digestBtn">Preview this week's digest</button><span class="sub">Sent automatically on Mondays at 08:03 UTC to Slack and webhook targets.</span></div><pre id="digestOut" class="note" style="white-space:pre-wrap;display:none"></pre>`;
+  $('#otForm').onsubmit = async e => { e.preventDefault(); try { await rest('rpc/save_output_target', {method: 'POST', body: JSON.stringify({p_kind: $('#otK').value, p_label: $('#otL').value.trim(), p_url: $('#otU').value.trim() || 'https://api.hubapi.com', p_token: $('#otT').value || null})}); toast('Target added'); renderSettings(); } catch (err) { toast('Could not add: ' + err.message.replace(/^\d+ /, '').slice(0, 120)); } };
+  $$('[data-o]', body).forEach(c => c.onchange = async () => { try { await rest('rpc/toggle_output_target', {method: 'POST', body: JSON.stringify({p_id: c.dataset.o, p_on: c.checked})}); toast(c.checked ? 'Enabled' : 'Paused'); } catch (err) { toast('Could not update: ' + err.message); } });
+  $$('[data-od]', body).forEach(b => b.onclick = async () => { if (!confirm('Remove this target?')) return; try { await rest('rpc/delete_output_target', {method: 'POST', body: JSON.stringify({p_id: b.dataset.od})}); toast('Removed'); renderSettings(); } catch (err) { toast('Could not remove: ' + err.message); } });
+  $$('[data-ot]', body).forEach(b => b.onclick = async () => { try { const r = await fetch(CFG.url + '/functions/v1/scout-push', {method: 'POST', headers: H(), body: JSON.stringify({test: true, target_id: b.dataset.ot})}); const j = await r.json(); const x = j.results?.[0]; toast(x?.ok ? 'Test message sent' : 'Test failed: ' + (x?.error || j.error || 'target is paused')); renderSettings(); } catch (err) { toast('Test failed: ' + err.message); } });
+  $('#digestBtn').onclick = async () => { try { const r = await fetch(CFG.url + '/functions/v1/scout-digest', {method: 'POST', headers: H(), body: JSON.stringify({dry_run: true, demo: isDemoWs()})}); const j = await r.json(); const o = $('#digestOut'); o.style.display = 'block'; o.textContent = j.text || j.note || j.error; } catch (err) { toast('Could not build digest: ' + err.message); } };
+}
 
 /* ---------- starfield ---------- */
 (function stars() {
@@ -828,7 +1075,7 @@ $('#exportBtn').onclick = () => { const a = [...act()].sort((x, y) => y.why_now 
   tick();
 })();
 
-const start = (location.hash || '').slice(1); if (['dashboard', 'accounts', 'watchlist', 'signals', 'pipeline', 'prompts', 'about'].includes(start)) view = start;
+const start = (location.hash || '').slice(1); if (['dashboard', 'accounts', 'watchlist', 'radar', 'ask', 'settings', 'signals', 'pipeline', 'prompts', 'about'].includes(start)) view = start;
 $$('.view').forEach(s => s.hidden = s.dataset.v !== view); $$('.nav').forEach(n => { if (n.dataset.view === view) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
 load();
 

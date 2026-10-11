@@ -14,9 +14,21 @@ async function loadKeys() {
   for (const r of data || []) { if (r.key === "gemini_api_key" && !GEMINI_KEY) GEMINI_KEY = r.value; if (r.key === "github_token" && !GH_TOKEN) GH_TOKEN = r.value; }
 }
 const MODELS = [Deno.env.get("GEMINI_MODEL"), "gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"].filter(Boolean) as string[];
-const PRODUCT = Deno.env.get("PRODUCT_ONE_LINER") ??
+const SB_URL = Deno.env.get("SUPABASE_URL")!;
+const SB_SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// Everything below is a default. loadConfig() overrides it from the Supabase tables, so the team can change it without a deploy.
+let PRODUCT = Deno.env.get("PRODUCT_ONE_LINER") ??
   "a developer productivity platform that cuts CI time with remote caching and test impact analysis, and gives every engineer reproducible preview environments";
-const PROMPT_VERSION = "writer-v1";
+let PROMPT_VERSION = "writer-v1";
+let PROMPT_TEMPLATE: string | null = null;
+let BANNED_LIST: string[] = [];
+let ICP_W: any = { base: 0.15, per_hypothesis: 0.12, kubernetes: 0.12, measured_ci: 0.1, platform_roles: 0.1, tier_a: 0.1 };
+let WHY_W: any = { base: 0.1, per_change: 0.08, migration: 0.3, platform_per_role: 0.06, platform_cap: 0.3, ci_slow: 0.15, ci_slow_min: 15 };
+let ALERT_HOOKS: string[] = ["migration", "hiring_surge"];
+let PLAYBOOKS: any[] = [];
+let SOURCES: Record<string, boolean> = { github: true, job_board: true, blog: true };
+let CUSTOM_SOURCES: any[] = [];
+let HOOK_TYPES: string[] = ["measured_ci", "migration", "hiring_surge", "scale_threshold", "blog_reference", "oss_project"];
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 
 let ghCalls = 0, gemCalls = 0;
@@ -69,6 +81,30 @@ const VOCAB: Record<string, { cat: Cat; aliases: string[] }> = {
 const ALIAS = new Map<string, string>();
 for (const [k, v] of Object.entries(VOCAB)) { ALIAS.set(k, k); v.aliases.forEach((a) => ALIAS.set(a, k)); }
 const canon = (t: string) => ALIAS.get(t.toLowerCase().trim()) ?? null;
+const normDomain = (d: string) => String(d || "").trim().toLowerCase().replace(/^[a-z]+:\/\//, "").replace(/^www\./, "").replace(/[\/?#:].*$/, "");
+
+async function loadConfig() {
+  const [prof, dict, pbs, srcs, prompt] = await Promise.all([
+    SB.from("seller_profile").select("*").eq("id", "default").maybeSingle(),
+    SB.from("tech_dictionary").select("*").eq("enabled", true),
+    SB.from("hook_playbooks").select("*").eq("enabled", true).order("sort"),
+    SB.from("sources").select("*"),
+    SB.from("prompt_versions").select("*").eq("role", "writer").eq("active", true).maybeSingle(),
+  ]);
+  if (prof.data) {
+    PRODUCT = prof.data.product || PRODUCT; BANNED_LIST = (prof.data.banned_phrases || []).map((x: string) => x.toLowerCase());
+    ICP_W = { ...ICP_W, ...(prof.data.icp_weights?.icp || {}) }; WHY_W = { ...WHY_W, ...(prof.data.icp_weights?.why_now || {}) };
+    if (prof.data.alert_hooks) ALERT_HOOKS = prof.data.alert_hooks;
+  }
+  if (dict.data?.length) {
+    for (const k of Object.keys(VOCAB)) delete VOCAB[k];
+    ALIAS.clear();
+    for (const d of dict.data) { VOCAB[d.tech] = { cat: d.category, aliases: d.aliases || [] }; ALIAS.set(d.tech, d.tech); (d.aliases || []).forEach((a: string) => ALIAS.set(a.toLowerCase(), d.tech)); }
+  }
+  if (pbs.data?.length) { PLAYBOOKS = pbs.data; HOOK_TYPES = [...new Set(pbs.data.map((p: any) => p.hook_type))] as string[]; }
+  for (const x of srcs.data || []) { if (x.kind === "builtin") SOURCES[x.slug] = x.enabled; else if (x.enabled) CUSTOM_SOURCES.push(x); }
+  if (prompt.data) { PROMPT_TEMPLATE = prompt.data.system_text; PROMPT_VERSION = prompt.data.version; }
+}
 const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const termRe = (a: string) => new RegExp(`(^|[^a-z0-9+#.])${escRe(a)}(?![a-z0-9+#])`, "i");
 const ALT_RE = /\b(or|such as|e\.g\.|for example|any of|one of|similar)\b/i;
@@ -101,10 +137,10 @@ function sentenceAround(text: string, idx: number) {
 
 // ---------- resolver ----------
 async function resolve(acc: any) {
-  const stem = acc.domain.replace(/^www\./, "").split(".")[0].toLowerCase();
+  const stem = normDomain(acc.domain).split(".")[0];
   const nameSlug = acc.name.toLowerCase().replace(/[^a-z0-9]/g, "");
   const out: any = {};
-  const dom = acc.domain.toLowerCase().replace(/^www\./, "");
+  const dom = normDomain(acc.domain);
   const checkOrg = async (cand: string) => {
     const r = await gh(`/orgs/${cand}`);
     if (!r.ok) return null;
@@ -212,6 +248,24 @@ async function collectBlog(feed: string | null) {
   }).filter((x) => x.title);
 }
 
+// custom sources: fetch a templated URL, parse as rss or html, return text snippets the dictionary can scan
+async function collectCustom(acc: any) {
+  const out: { slug: string; url: string; text: string }[] = [];
+  await Promise.all(CUSTOM_SOURCES.map(async (src) => {
+    const url = String(src.url_template || "").replace(/\{domain\}/g, acc.domain).replace(/\{name\}/g, encodeURIComponent(acc.name)).replace(/\{github_org\}/g, acc.github_org || "").replace(/\{ats_slug\}/g, acc.ats_slug || "");
+    if (!/^https:\/\//.test(url) || /\{[a-z_]+\}/.test(url)) return;
+    const body = await getText(url, 9000); if (!body) return;
+    if (src.parser === "rss") {
+      for (const it of body.split(/<item[\s>]|<entry[\s>]/i).slice(1, 8)) {
+        const title = stripHtml((it.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "").replace(/<!\[CDATA\[|\]\]>/g, ""));
+        const link = (it.match(/<link[^>]*href="([^"]+)"/i)?.[1] || it.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || url).trim();
+        if (title) out.push({ slug: src.slug, url: link, text: title });
+      }
+    } else out.push({ slug: src.slug, url, text: stripHtml(body.replace(/<(script|style)[\s\S]*?<\/\1>/gi, " ")).slice(0, 8000) });
+  }));
+  return out;
+}
+
 // ---------- Gemini ----------
 // Works with AI Studio keys (generativelanguage) and Vertex AI express-mode keys (aiplatform). Errors never echo the key.
 async function gemini(system: string, user: string, schema: any, temperature = 0) {
@@ -253,7 +307,7 @@ Rules:
 - At most 25 items. If nothing qualifies return {"items": []}.`;
 const P1_SCHEMA = { type: "OBJECT", properties: { items: { type: "ARRAY", items: { type: "OBJECT", properties: { tech: { type: "STRING" }, strength: { type: "STRING", enum: ["required", "preferred", "alternative", "narrative"] }, migration: { type: "BOOLEAN" }, quote: { type: "STRING" }, job: { type: "INTEGER" } }, required: ["tech", "strength", "quote", "job"] } } }, required: ["items"] };
 
-const P2_SYSTEM = (persona: string) => `You write pre-call research for an enterprise account executive who sells ${PRODUCT}.
+const P2_DEFAULT = (persona: string) => `You write pre-call research for an enterprise account executive who sells ${PRODUCT}.
 You may ONLY use facts in FACT_SHEET. Every sentence must cite the fact IDs it relies on (e.g. "F3").
 Never name a technology, number, team, repository or project that is not in FACT_SHEET.
 Facts with confidence below 0.6, or state "hiring_only"/"emerging", must be hedged ("job posts suggest", "appears to").
@@ -266,15 +320,18 @@ TASK
 3. hook_type: the chosen hypothesis's hook type.
 4. discovery: 3 short questions the AE should still ask on the call, about things the fact sheet does NOT answer.
 BANNED words/phrases: "I noticed", "hope this finds you", "leverage", "synergy", "cutting-edge", "in today's", "streamline", "game-changer", "revolutionize", "seamless".`;
-const P2_SCHEMA = {
+const P2_SYSTEM = (persona: string) => PROMPT_TEMPLATE
+  ? PROMPT_TEMPLATE.split("{{product}}").join(PRODUCT).split("{{persona}}").join(persona).split("{{banned}}").join((BANNED_LIST.length ? BANNED_LIST : BANNED).map((b) => `"${b}"`).join(", "))
+  : P2_DEFAULT(persona);
+const P2_SCHEMA = () => ({
   type: "OBJECT",
   properties: {
     summary: { type: "ARRAY", items: { type: "ARRAY", items: { type: "OBJECT", properties: { text: { type: "STRING" }, cites: { type: "ARRAY", items: { type: "STRING" } } }, required: ["text", "cites"] } } },
-    opener: { type: "OBJECT", properties: { text: { type: "STRING" }, cites: { type: "ARRAY", items: { type: "STRING" } }, hypothesis: { type: "STRING" }, hook_type: { type: "STRING", enum: ["measured_ci", "migration", "hiring_surge", "scale_threshold", "blog_reference", "oss_project"] } }, required: ["text", "cites", "hook_type"] },
+    opener: { type: "OBJECT", properties: { text: { type: "STRING" }, cites: { type: "ARRAY", items: { type: "STRING" } }, hypothesis: { type: "STRING" }, hook_type: { type: "STRING", enum: HOOK_TYPES } }, required: ["text", "cites", "hook_type"] },
     discovery: { type: "ARRAY", items: { type: "STRING" } },
   },
   required: ["summary", "opener", "discovery"],
-};
+});
 const BANNED = ["i noticed", "hope this finds you", "leverage", "synergy", "cutting-edge", "in today's", "streamline", "game-changer", "revolutionize", "seamless"];
 
 // ---------- verifier ----------
@@ -296,7 +353,7 @@ function verify(out: any, facts: any[], company = "") {
     for (const id of s.cites || []) if (!ids.has(id)) errors.push(`unknown cite ${id}`);
     if (!(s.cites || []).length) errors.push(`sentence has no cites: "${text.slice(0, 50)}"`);
     for (const n of text.match(/\d+(\.\d+)?/g) || []) if (!(s.cites || []).some((id: string) => factText(id).includes(n))) errors.push(`number ${n} is not supported by its cited facts`);
-    const low = text.toLowerCase(); for (const b of BANNED) if (low.includes(b)) errors.push(`banned phrase "${b}"`);
+    const low = text.toLowerCase(); for (const b of (BANNED_LIST.length ? BANNED_LIST : BANNED)) if (low.includes(b)) errors.push(`banned phrase "${b}"`);
   }
   const words = (out.opener?.text || "").split(/\s+/).filter(Boolean).length;
   if (words > 30) errors.push(`opener is ${words} words (max 30)`);
@@ -304,10 +361,26 @@ function verify(out: any, facts: any[], company = "") {
   return [...new Set(errors)];
 }
 
+// feedback-tuned openers: what this team actually used, edited and rejected feeds the next prompt (few-shot)
+async function feedbackShots() {
+  try {
+    const { data } = await SB.from("feedback").select("action, edited_opener, briefs(opener, hook_type)").order("created_at", { ascending: false }).limit(30);
+    const rows = (data || []).map((r: any) => ({ a: r.action, hook: r.briefs?.hook_type, text: r.action.startsWith("edited") && r.edited_opener ? r.edited_opener : r.briefs?.opener })).filter((r: any) => r.text);
+    const used = rows.filter((r) => r.a === "used_as_is" || r.a === "edited_tone").slice(0, 3);
+    const bad = rows.filter((r) => r.a === "rejected" || r.a === "edited_fact").slice(0, 2);
+    if (!used.length && !bad.length) return "";
+    let t = "\n\nTEAM FEEDBACK (style signal only; do not copy wording or reuse any facts from these):";
+    if (used.length) t += "\nOpeners the AEs sent or kept:\n" + used.map((r) => `- (${r.hook}) ${r.text}`).join("\n");
+    if (bad.length) t += "\nOpeners the AEs rejected or had to correct for facts; avoid this style:\n" + bad.map((r) => `- (${r.hook}) ${r.text}`).join("\n");
+    return t;
+  } catch { return ""; }
+}
+
 // ---------- main ----------
 async function refresh(accountId: string, trigger: string) {
-  const t0 = Date.now(); ghCalls = 0; gemCalls = 0;
+  const t0 = Date.now(); ghCalls = 0; gemCalls = 0; CUSTOM_SOURCES = []; PLAYBOOKS = [];
   await loadKeys();
+  await loadConfig();
   const { data: acc } = await SB.from("watchlist").select("*").eq("id", accountId).single();
   if (!acc) throw new Error("account not found");
   if (trigger === "manual" && acc.last_refreshed_at && Date.now() - Date.parse(acc.last_refreshed_at) < 5 * 60000 && acc.refresh_status === "ok") return { skipped: "refreshed less than 5 minutes ago" };
@@ -320,10 +393,11 @@ async function refresh(accountId: string, trigger: string) {
     if (Object.keys(resolved).length) { await SB.from("watchlist").update(resolved).eq("id", accountId); Object.assign(acc, resolved); }
 
     // 2 collect
-    const [ghd, jobs, posts] = await Promise.all([
-      acc.github_org ? collectGitHub(acc.github_org) : Promise.resolve(null),
-      acc.ats_provider ? collectJobs(acc.ats_provider, acc.ats_slug) : Promise.resolve(null),
-      collectBlog(acc.blog_feed),
+    const [ghd, jobs, posts, customRes] = await Promise.all([
+      acc.github_org && SOURCES.github !== false ? collectGitHub(acc.github_org) : Promise.resolve(null),
+      acc.ats_provider && SOURCES.job_board !== false ? collectJobs(acc.ats_provider, acc.ats_slug) : Promise.resolve(null),
+      SOURCES.blog !== false ? collectBlog(acc.blog_feed) : Promise.resolve([]),
+      collectCustom(acc),
     ]);
 
     // 3 extract -> raw evidence
@@ -365,6 +439,11 @@ async function refresh(accountId: string, trigger: string) {
       } catch (_e) { /* extraction is best-effort; dictionary evidence stands */ }
     }
     for (const p of posts) for (const [alias, key] of ALIAS) if (alias.length > 3 && termRe(alias).test(p.title)) ev.push({ tech: key, category: VOCAB[key].cat, source: "blog", strength: "narrative", url: p.link, quote: p.title });
+    for (const c of customRes) for (const [alias, key] of ALIAS) {
+      if (alias.length <= 3 || VOCAB[key].cat === "language") continue;
+      const m = c.text.toLowerCase().match(termRe(alias)); if (!m || m.index == null) continue;
+      ev.push({ tech: key, category: VOCAB[key].cat, source: c.slug, strength: "narrative", url: c.url, quote: sentenceAround(c.text, m.index + m[1].length) });
+    }
 
     // 4 fuse into ledger (one fact per tech+source, best evidence kept)
     const { data: ovr } = await SB.from("overrides").select("*").eq("account_id", accountId);
@@ -397,16 +476,33 @@ async function refresh(accountId: string, trigger: string) {
     const has = (t: string) => coreFacts.some((f) => f.tech === t);
     const fidOf = (t: string, src?: string) => coreFacts.filter((f) => f.tech === t && (!src || f.source === src)).map((f) => f.fid);
     const hyps: any[] = [];
-    if (ghd?.ci != null && ghd.ci >= 8) hyps.push({ id: "H1", hook_type: "measured_ci", score: Math.min(1, ghd.ci / 25), friction: "slow CI feedback loop on every pull request", evidence: fidOf("github actions", "github") });
-    const mig = coreFacts.find((f) => f.state === "migrating_to"); if (mig) hyps.push({ id: "H2", hook_type: "migration", score: 0.85, friction: "running two systems in parallel during a migration doubles the CI and environment surface", evidence: [mig.fid] });
-    if ((platRoles ?? 0) >= 2) hyps.push({ id: "H3", hook_type: "hiring_surge", score: Math.min(1, 0.4 + 0.1 * platRoles!), friction: "a growing platform team is a build-vs-buy moment for internal developer tooling", evidence: facts.filter((f) => f.tech === "hiring").map((f) => f.fid) });
-    if ((has("bazel") || has("nx") || has("turborepo") || has("monorepo")) && (ghd?.active30 ?? 0) >= 10) hyps.push({ id: "H4", hook_type: "scale_threshold", score: 0.7, friction: "monorepo builds rebuild and retest far more than each change touches", evidence: [...fidOf("bazel"), ...fidOf("nx"), ...fidOf("turborepo"), ...fidOf("monorepo")].slice(0, 3) });
-    if (has("kubernetes") && (has("docker") || has("grpc"))) hyps.push({ id: "H5", hook_type: "scale_threshold", score: 0.6, friction: "local environments cannot reproduce a Kubernetes service mesh, so integration bugs surface late", evidence: [...fidOf("kubernetes"), ...fidOf("grpc")].slice(0, 3) });
-    const infraPost = posts.find((p) => /(ci|build|test|deploy|infra|platform|kubernetes|monorepo|migrat|developer|performance|scal)/i.test(p.title));
-    if (infraPost) { const f = facts.find((x) => x.tech === "blog post" && x.quote === infraPost.title); if (f) hyps.push({ id: "H6", hook_type: "blog_reference", score: 0.55, friction: "the engineering problem described in their own post", evidence: [f.fid] }); }
-    if ((ghd?.publicRepos ?? 0) >= 20 && !hyps.length) hyps.push({ id: "H7", hook_type: "oss_project", score: 0.4, friction: "maintaining many public repos multiplies CI and release toil", evidence: facts.filter((f) => f.tech === "github activity").map((f) => f.fid) });
+    const mig = coreFacts.find((f) => f.state === "migrating_to");
+    const metricVal: Record<string, number | null | undefined> = { ci: ghd?.ci, platform_roles: platRoles, eng_roles: engRoles, active30: ghd?.active30, public_repos: ghd?.publicRepos };
+    const cmp = (a: number, op: string, b: number) => op === ">=" ? a >= b : op === ">" ? a > b : op === "<=" ? a <= b : op === "<" ? a < b : a === b;
+    const holds = (c: any): boolean => {
+      if (c.m === "migrating") return !!mig;
+      if (c.m === "has") return (c.v || []).some((t: string) => has(t));
+      if (c.m === "blog_match") { try { return posts.some((p) => new RegExp(c.v, "i").test(p.title)); } catch { return false; } }
+      if (c.m === "no_other") return hyps.length === 0;
+      const val = metricVal[c.m]; if (val == null) return false;
+      return cmp(val, c.op || ">=", Number(c.v));
+    };
+    for (const pb of PLAYBOOKS) {
+      const conds = pb.rule?.all || [];
+      if (!conds.length || !conds.every(holds)) continue;
+      const ek = pb.evidence?.kind; let evid: string[] = [];
+      if (ek === "ci") evid = fidOf("github actions", "github");
+      else if (ek === "migrating") evid = mig ? [mig.fid] : [];
+      else if (ek === "hiring") evid = facts.filter((f) => f.tech === "hiring").map((f) => f.fid);
+      else if (ek === "tech") evid = (pb.evidence.techs || []).flatMap((t: string) => fidOf(t)).slice(0, pb.evidence.max || 3);
+      else if (ek === "blog") { const re = conds.find((c: any) => c.m === "blog_match"); const bp = posts.find((p) => { try { return new RegExp(re.v, "i").test(p.title); } catch { return false; } }); const f = bp && facts.find((x) => x.tech === "blog post" && x.quote === bp.title); evid = f ? [f.fid] : []; }
+      else if (ek === "activity") evid = facts.filter((f) => f.tech === "github activity").map((f) => f.fid);
+      if (!evid.length) continue; // a hypothesis without a citable fact is dropped
+      const mv = pb.metric ? Number(metricVal[pb.metric] ?? 0) : 0;
+      hyps.push({ id: `H${hyps.length + 1}`, playbook: pb.slug, hook_type: pb.hook_type, score: Math.min(1, Number(pb.base) + Number(pb.per) * mv), friction: pb.friction, evidence: evid });
+    }
     hyps.sort((a, b) => b.score - a.score);
-    const icp = r2(Math.min(1, 0.15 + 0.12 * hyps.length + (has("kubernetes") ? 0.12 : 0) + (ghd?.ci != null ? 0.1 : 0) + ((platRoles ?? 0) > 0 ? 0.1 : 0) + (tier === "A" ? 0.1 : 0)));
+    const icp = r2(Math.min(1, ICP_W.base + ICP_W.per_hypothesis * hyps.length + (has("kubernetes") ? ICP_W.kubernetes : 0) + (ghd?.ci != null ? ICP_W.measured_ci : 0) + ((platRoles ?? 0) > 0 ? ICP_W.platform_roles : 0) + (tier === "A" ? ICP_W.tier_a : 0)));
 
     // 6 diff vs previous snapshot
     const { data: prev } = await SB.from("snapshots").select("*").eq("account_id", accountId).order("taken_at", { ascending: false }).limit(1).maybeSingle();
@@ -421,7 +517,7 @@ async function refresh(accountId: string, trigger: string) {
       if (ghd?.ci != null && prev.ci_median_min != null && Math.abs(ghd.ci - prev.ci_median_min) / prev.ci_median_min >= 0.2) diff.push(`CI median ${prev.ci_median_min} → ${ghd.ci} min`);
       const prevPost = (prev.blog_posts || [])[0]?.title; if (posts[0] && posts[0].title !== prevPost) diff.push(`New post: ${posts[0].title}`);
     }
-    const whyNow = r2(Math.min(1, 0.1 + 0.08 * diff.length + (mig ? 0.3 : 0) + Math.min(0.3, 0.06 * (platRoles ?? 0)) + (ghd?.ci != null && ghd.ci > 15 ? 0.15 : 0)));
+    const whyNow = r2(Math.min(1, WHY_W.base + WHY_W.per_change * diff.length + (mig ? WHY_W.migration : 0) + Math.min(WHY_W.platform_cap, WHY_W.platform_per_role * (platRoles ?? 0)) + (ghd?.ci != null && ghd.ci > WHY_W.ci_slow_min ? WHY_W.ci_slow : 0)));
     const factSheet = facts.map((f) => `[${f.fid}] ${f.tech} | ${f.category} | ${f.state} | conf ${f.confidence} | ${f.source}${f.strength !== "narrative" ? " " + f.strength : ""} | "${f.quote}"`).join("\n");
     const fsHash = await sha(factSheet + acc.persona + PROMPT_VERSION);
     const { data: lastBrief } = await SB.from("briefs").select("id, snapshot_id, used_fallback, model").eq("account_id", accountId).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -443,12 +539,14 @@ async function refresh(accountId: string, trigger: string) {
       let brief: any = null, model = null, errors: string[] = [];
       if (tier !== "C" && hyps.length) {
         const user = `FACT_SHEET (as of ${new Date().toISOString().slice(0, 10)}, evidence tier ${tier}, company ${acc.name}):\n${factSheet}\n\nHYPOTHESES (pre-scored; pick the best one that the facts support):\n${hyps.map((h) => `[${h.id}] score ${h.score.toFixed(2)} | hook ${h.hook_type} | friction: ${h.friction} | evidence: ${h.evidence.join(", ")}`).join("\n")}\n\nCHANGES SINCE LAST WEEK:\n${diff.join("\n") || "none"}`;
+        const shots = await feedbackShots();
+        const userP = user + shots;
         try {
-          const r = await gemini(P2_SYSTEM(acc.persona), user, P2_SCHEMA); model = r.model; brief = r.out;
+          const r = await gemini(P2_SYSTEM(acc.persona), userP, P2_SCHEMA()); model = r.model; brief = r.out;
           errors = verify(brief, facts, acc.name);
           if (errors.length) {
             verifierFailed = true;
-            const rr = await gemini(P2_SYSTEM(acc.persona), `${user}\n\nYOUR PREVIOUS DRAFT:\n${JSON.stringify(brief)}\n\nIt failed these checks:\n- ${errors.join("\n- ")}\nReturn the full JSON again, changing only what is needed to pass. Same FACT_SHEET and rules.`, P2_SCHEMA);
+            const rr = await gemini(P2_SYSTEM(acc.persona), `${userP}\n\nYOUR PREVIOUS DRAFT:\n${JSON.stringify(brief)}\n\nIt failed these checks:\n- ${errors.join("\n- ")}\nReturn the full JSON again, changing only what is needed to pass. Same FACT_SHEET and rules.`, P2_SCHEMA());
             const e2 = verify(rr.out, facts, acc.name);
             if (!e2.length) { brief = rr.out; repaired = true; errors = []; } else { errors = e2; brief = null; }
           }
@@ -481,6 +579,14 @@ async function refresh(accountId: string, trigger: string) {
       if (prev) await SB.from("events").insert({ account_id: accountId, kind: "brief", detail: `New brief (${brief.opener?.hook_type ?? "no opener"})` });
     }
 
+    try { await SB.rpc("compute_radar"); } catch (_e) { /* radar is derived; never fail a refresh on it */ }
+    if (material && prev && trigger !== "added") {
+      const top = hyps[0];
+      if (top && ALERT_HOOKS.includes(top.hook_type)) {
+        const pushUrl = `${SB_URL}/functions/v1/scout-push`;
+        try { await fetch(pushUrl, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${SB_SERVICE}` }, body: JSON.stringify({ account_id: accountId, mode: "alert", reason: diff.slice(0, 3).join("; ") }) }); } catch (_e) { /* best effort */ }
+      }
+    }
     await SB.from("watchlist").update({ refresh_status: "ok", last_refreshed_at: new Date().toISOString(), refresh_error: null }).eq("id", accountId);
     await SB.from("pipeline_runs").update({ finished_at: new Date().toISOString(), status: "ok", github_calls: ghCalls, gemini_calls: gemCalls, material, verifier_failed: verifierFailed, repaired, used_fallback: fallback, duration_ms: Date.now() - t0 }).eq("id", runRow.id);
     return { ok: true, tier, facts: facts.length, material, diff, p1Model, ghCalls, gemCalls };
