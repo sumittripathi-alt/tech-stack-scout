@@ -26,7 +26,7 @@ let ICP_W: any = { base: 0.15, per_hypothesis: 0.12, kubernetes: 0.12, measured_
 let WHY_W: any = { base: 0.1, per_change: 0.08, migration: 0.3, platform_per_role: 0.06, platform_cap: 0.3, ci_slow: 0.15, ci_slow_min: 15 };
 let ALERT_HOOKS: string[] = ["migration", "hiring_surge"];
 let PLAYBOOKS: any[] = [];
-let SOURCES: Record<string, boolean> = { github: true, job_board: true, blog: true };
+let SOURCES: Record<string, boolean> = { github: true, job_board: true, blog: true, website: true, fingerprint: true, news: true };
 let CUSTOM_SOURCES: any[] = [];
 let HOOK_TYPES: string[] = ["measured_ci", "migration", "hiring_surge", "scale_threshold", "blog_reference", "oss_project"];
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
@@ -135,8 +135,193 @@ function sentenceAround(text: string, idx: number) {
   return text.slice(start, end).trim().slice(0, 220);
 }
 
+// ---------- v7: website crawl, link-based discovery, fingerprint, news ----------
+const UA_BOT = "Mozilla/5.0 (compatible; TechStackScout/1.0; +https://tech-stack-scout.vercel.app)";
+async function getPage(url: string, timeout = 9000) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), timeout);
+  try {
+    const r = await fetch(url, { headers: { "User-Agent": UA_BOT, Accept: "text/html,application/xhtml+xml" }, signal: c.signal, redirect: "follow" });
+    if (!r.ok) return { ok: false, status: r.status, url: r.url || url, headers: {} as Record<string, string>, html: "" };
+    const ct = r.headers.get("content-type") || "";
+    const headers: Record<string, string> = {}; r.headers.forEach((v, k) => (headers[k.toLowerCase()] = v));
+    if (!/html|xml|text/i.test(ct)) return { ok: false, status: 415, url: r.url || url, headers, html: "" };
+    return { ok: true, status: r.status, url: r.url || url, headers, html: (await r.text()).slice(0, 700000) };
+  } catch { return { ok: false, status: 0, url, headers: {} as Record<string, string>, html: "" }; } finally { clearTimeout(t); }
+}
+async function postJSON(url: string, body: any, timeout = 12000) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), timeout);
+  try {
+    const r = await fetch(url, { method: "POST", headers: { "User-Agent": "tech-stack-scout", "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(body), signal: c.signal });
+    if (!r.ok) return { ok: false, data: null as any };
+    return { ok: true, data: await r.json() };
+  } catch { return { ok: false, data: null as any }; } finally { clearTimeout(t); }
+}
+const visibleText = (html: string) => stripHtml(html.replace(/<(script|style|noscript|svg)[\s\S]*?<\/\1>/gi, " ")).slice(0, 14000);
+const robotsBlocks = (txt: string | null) => {
+  if (!txt) return false;
+  let star = false;
+  for (const raw of txt.split(/\r?\n/)) {
+    const l = raw.replace(/#.*/, "").trim(); if (!l) continue;
+    const m = l.match(/^([a-z-]+)\s*:\s*(.*)$/i); if (!m) continue;
+    const k = m[1].toLowerCase(), v = m[2].trim();
+    if (k === "user-agent") star = v === "*";
+    else if (star && k === "disallow" && v === "/") return true;
+  }
+  return false;
+};
+const GH_RESERVED = new Set(["sponsors", "orgs", "features", "marketplace", "topics", "about", "pricing", "login", "join", "settings", "apps", "enterprise", "collections", "explore", "readme", "security", "site", "contact", "customer-stories", "solutions", "resources", "events", "trending", "notifications", "new", "organizations", "users", "team", "pulls", "issues", "codespaces", "copilot", "actions", "premium-support"]);
+const ATS_PATTERNS: [string, RegExp, (m: RegExpMatchArray) => string][] = [
+  ["greenhouse", /(?:boards|job-boards)\.greenhouse\.io\/(?:embed\/job_board\?for=)?([a-z0-9_-]+)/i, (m) => m[1]],
+  ["lever", /jobs\.lever\.co\/([a-z0-9_-]+)/i, (m) => m[1]],
+  ["ashby", /jobs\.ashbyhq\.com\/([a-z0-9._%-]+)/i, (m) => decodeURIComponent(m[1])],
+  ["workable", /apply\.workable\.com\/([a-z0-9_-]+)/i, (m) => m[1]],
+  ["smartrecruiters", /(?:jobs|careers)\.smartrecruiters\.com\/([A-Za-z0-9_-]+)/i, (m) => m[1]],
+  ["recruitee", /([a-z0-9-]+)\.recruitee\.com/i, (m) => m[1]],
+  ["personio", /([a-z0-9-]+)\.jobs\.personio\.(?:de|com)/i, (m) => m[1]],
+  ["bamboohr", /([a-z0-9-]+)\.bamboohr\.com\/(?:careers|jobs)/i, (m) => m[1]],
+  ["workday", /([a-z0-9-]+\.wd\d+\.myworkdayjobs\.com)\/(?:[a-z]{2}-[A-Za-z]{2}\/)?([A-Za-z0-9_-]+)/i, (m) => `${m[1]}|${m[1].split(".")[0]}|${m[2]}`],
+];
+const NOT_SLUG = new Set(["embed", "jobs", "careers", "api", "www", "static", "assets"]);
+function jsonldJobs(html: string, base: string) {
+  const out: { title: string; url: string; text: string }[] = [];
+  const walk = (n: any) => {
+    if (!n) return;
+    if (Array.isArray(n)) return n.forEach(walk);
+    if (typeof n !== "object") return;
+    const t = n["@type"]; if (t === "JobPosting" || (Array.isArray(t) && t.includes("JobPosting"))) out.push({ title: String(n.title || ""), url: String(n.url || base), text: stripHtml(String(n.description || "")) });
+    if (n["@graph"]) walk(n["@graph"]);
+    if (n.itemListElement) walk(n.itemListElement);
+    if (n.item) walk(n.item);
+  };
+  for (const m of html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)) { try { walk(JSON.parse(m[1].trim())); } catch { /* ignore */ } }
+  return out.filter((j) => j.title);
+}
+// Crawl the public website politely: homepage, then up to 6 pages found by link, and discover GitHub org / ATS / RSS from what the site itself links to.
+async function collectWebsite(dom: string, careersHint: string | null) {
+  const res: any = { ok: false, blocked: false, home: null, pages: [] as { kind: string; url: string; text: string }[], githubOrgs: [] as { org: string; n: number }[], ats: [] as { provider: string; slug: string }[], rss: [] as string[], careersUrl: careersHint || null, jsonld: [] as any[], fetched: 0 };
+  const robots = await getText(`https://${dom}/robots.txt`, 6000);
+  if (robotsBlocks(robots)) { res.blocked = true; return res; }
+  let home = await getPage(`https://${dom}/`); if (!home.ok) home = await getPage(`https://www.${dom}/`);
+  if (!home.ok) return res;
+  res.ok = true; res.home = home; res.fetched = 1;
+  let host = ""; try { host = new URL(home.url).hostname.replace(/^www\./, ""); } catch { host = dom; }
+  const sameSite = (u: URL) => u.hostname === host || u.hostname.endsWith("." + host) || u.hostname === "www." + host;
+  const links: { url: URL; text: string }[] = [];
+  const collectLinks = (html: string, base: string) => {
+    for (const m of html.matchAll(/<a\s[^>]*href=["']([^"'#]+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+      try { const u = new URL(m[1], base); if (/^https?:$/.test(u.protocol)) links.push({ url: u, text: stripHtml(m[2]).slice(0, 80).toLowerCase() }); } catch { /* skip */ }
+    }
+  };
+  collectLinks(home.html, home.url);
+  const KINDS: [string, RegExp][] = [
+    ["careers", /(^|\/)(careers?|jobs?|join-us|join|work-with-us|work-for-us|vacancies|were-hiring|we-are-hiring|opportunities)(\/|$|-)/i],
+    ["engineering", /(^|\/)(engineering|tech-blog|technology|developers?|dev-blog)(\/|$)/i],
+    ["security", /(^|\/)(security|trust|trust-center)(\/|$)/i],
+    ["blog", /(^|\/)(blog|news|insights|resources)(\/|$)/i],
+  ];
+  const pick: Record<string, string> = {};
+  if (careersHint) pick.careers = careersHint;
+  for (const l of links) {
+    if (!sameSite(l.url)) continue;
+    const path = l.url.pathname.toLowerCase();
+    for (const [k, re] of KINDS) if (!pick[k] && (re.test(path) || (path.length < 3 && re.test("/" + l.text.replace(/\s+/g, "-"))) || (k === "careers" && /^(careers|jobs|we're hiring|join us)$/.test(l.text)))) pick[k] = l.url.href;
+  }
+  const guesses = pick.careers ? [] : [`https://${host}/careers`, `https://${host}/jobs`, `https://www.${host}/careers`];
+  const toFetch: [string, string][] = Object.entries(pick).map(([k, u]) => [k, u] as [string, string]);
+  const fetched = await Promise.all(toFetch.map(async ([k, u]) => ({ kind: k, page: await getPage(u) })));
+  if (!pick.careers) for (const g of guesses) { const p = await getPage(g, 7000); if (p.ok && /career|job|position|opening|hiring/i.test(p.html.slice(0, 40000))) { fetched.push({ kind: "careers", page: p }); break; } }
+  const htmls: { url: string; html: string }[] = [{ url: home.url, html: home.html }];
+  for (const f of fetched) {
+    if (!f.page.ok) continue;
+    res.fetched++; htmls.push({ url: f.page.url, html: f.page.html }); collectLinks(f.page.html, f.page.url);
+    if (f.kind === "careers" && !res.careersUrl) res.careersUrl = f.page.url;
+    if (f.kind !== "blog") res.pages.push({ kind: f.kind, url: f.page.url, text: visibleText(f.page.html) });
+    if (f.kind === "careers") res.jsonld.push(...jsonldJobs(f.page.html, f.page.url));
+  }
+  if (!res.careersUrl && pick.careers) res.careersUrl = pick.careers;
+  // discovery by link, never by guess
+  const gh = new Map<string, number>();
+  const atsSeen = new Set<string>();
+  const hay = [...htmls.map((h) => h.html), ...links.map((l) => l.url.href)];
+  for (const s of hay) {
+    for (const m of s.matchAll(/github\.com\/(?:orgs\/)?([A-Za-z0-9-]{2,39})(?=[\/"'\s?#<)]|$)/g)) { const o = m[1].toLowerCase(); if (!GH_RESERVED.has(o)) gh.set(o, (gh.get(o) || 0) + 1); }
+    for (const [prov, re, slugOf] of ATS_PATTERNS) {
+      const m = s.match(re); if (!m) continue; const slug = slugOf(m); if (!slug || NOT_SLUG.has(slug.toLowerCase())) continue;
+      const key = prov + ":" + slug; if (!atsSeen.has(key)) { atsSeen.add(key); res.ats.push({ provider: prov, slug }); }
+    }
+  }
+  res.githubOrgs = [...gh.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([org, n]) => ({ org, n }));
+  const rss = new Set<string>();
+  for (const h of htmls) for (const m of h.html.matchAll(/<link[^>]+type=["']application\/(?:rss|atom)\+xml["'][^>]*>/gi)) { const href = m[0].match(/href=["']([^"']+)["']/i)?.[1]; if (href) { try { rss.add(new URL(href, h.url).href); } catch { /* skip */ } } }
+  res.rss = [...rss].slice(0, 4);
+  return res;
+}
+
+// What the public internet already shows without anyone publishing a stack: response headers, script hosts, DNS, certificate names.
+async function doh(name: string, type: string) {
+  const r = await getJSON(`https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(name)}&type=${type}`, { Accept: "application/dns-json" }, 6000);
+  return ((r.data?.Answer || []) as any[]).map((a) => String(a.data || "")).filter(Boolean);
+}
+async function collectFingerprint(dom: string, home: any) {
+  const out: { tech: string; quote: string; url: string }[] = [];
+  const seen = new Set<string>();
+  const add = (tech: string, quote: string, url: string) => { if (!VOCAB[tech] || seen.has(tech)) return; seen.add(tech); out.push({ tech, quote, url }); };
+  const u = `https://${dom}`;
+  if (home?.ok) {
+    const h = home.headers as Record<string, string>, srv = (h["server"] || "").toLowerCase();
+    if (h["cf-ray"] || srv.includes("cloudflare")) add("cloudflare", `response header from ${dom}: ${h["server"] ? "server: " + h["server"] : "cf-ray present"}`, u);
+    if (h["x-vercel-id"] || srv.includes("vercel")) add("vercel", `response header from ${dom}: ${h["x-vercel-id"] ? "x-vercel-id present" : "server: " + h["server"]}`, u);
+    if (h["x-nf-request-id"] || srv.includes("netlify")) add("netlify", `response header from ${dom}: ${h["x-nf-request-id"] ? "x-nf-request-id present" : "server: " + h["server"]}`, u);
+    if (h["x-amz-cf-id"] || (h["via"] || "").toLowerCase().includes("cloudfront")) add("aws", `response header from ${dom}: ${h["x-amz-cf-id"] ? "x-amz-cf-id (CloudFront) present" : "via: " + h["via"]}`, u);
+    if (h["fastly-debug-digest"] || /cache-[a-z]+/i.test(h["x-served-by"] || "")) add("fastly", `response header from ${dom}: x-served-by ${h["x-served-by"] || "fastly-debug-digest"}`, u);
+    if (srv.includes("google frontend") || (h["via"] || "").includes("google")) add("gcp", `response header from ${dom}: ${h["server"] ? "server: " + h["server"] : "via: " + h["via"]}`, u);
+    if (/azure|microsoft-iis/.test(srv) || h["x-azure-ref"] || h["x-ms-request-id"]) add("azure", `response header from ${dom}: ${h["x-azure-ref"] ? "x-azure-ref present" : "server: " + h["server"]}`, u);
+    const html: string = home.html || "";
+    const scripts = [...html.matchAll(/<(?:script|link)[^>]+(?:src|href)=["']([^"']+)["']/gi)].map((m) => m[1]).join(" ").toLowerCase();
+    if (/cdn\.segment\.(com|io)|segment\.io/.test(scripts)) add("segment", `page loads a script from ${scripts.match(/[a-z.]*segment\.(?:com|io)/)?.[0]}`, u);
+    if (/datadoghq|datadog-rum/.test(scripts)) add("datadog", `page loads a script from ${scripts.match(/[a-z.-]*datadog[a-z.-]*/)?.[0]}`, u);
+    if (/sentry-cdn|browser\.sentry|sentry\.io/.test(scripts)) add("sentry", `page loads a script from ${scripts.match(/[a-z.-]*sentry[a-z.-]*/)?.[0]}`, u);
+    if (/newrelic\.com|nr-data\.net/.test(scripts)) add("newrelic", `page loads a script from ${scripts.match(/[a-z.-]*(?:newrelic\.com|nr-data\.net)/)?.[0]}`, u);
+  }
+  const [cn, apexCn, txt, crt] = await Promise.all([doh("www." + dom, "CNAME"), doh(dom, "CNAME"), doh(dom, "TXT"), getJSON(`https://crt.sh/?q=%25.${dom}&output=json`, {}, 9000)]);
+  for (const d of [...cn, ...apexCn]) {
+    const l = d.toLowerCase();
+    if (l.includes("cloudfront.net")) add("aws", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (l.includes("vercel-dns") || l.includes("vercel.app")) add("vercel", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (l.includes("netlify")) add("netlify", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (l.includes("herokudns") || l.includes("herokuapp")) add("heroku", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (l.includes("fastly")) add("fastly", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (/azurewebsites|azureedge|trafficmanager|cloudapp\.azure/.test(l)) add("azure", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (/googlehosted|ghs\.google|appspot\.com/.test(l)) add("gcp", `DNS: www.${dom} CNAME ${d}`, u);
+    else if (l.includes("amazonaws.com") || l.includes("elb.")) add("aws", `DNS: www.${dom} CNAME ${d}`, u);
+  }
+  for (const t of txt) if (/amazonses/i.test(t)) add("aws", `DNS TXT record on ${dom} references amazonses`, u);
+  const names = new Set<string>();
+  for (const row of (Array.isArray(crt.data) ? crt.data : []).slice(0, 4000)) for (const n of String(row.name_value || "").split("\n")) names.add(n.toLowerCase().replace(/^\*\./, ""));
+  const SUB: [RegExp, string][] = [[/(^|[.-])jenkins([.-]|$)/, "jenkins"], [/(^|[.-])gitlab([.-]|$)/, "gitlab"], [/(^|[.-])grafana([.-]|$)/, "grafana"], [/(^|[.-])argocd?([.-]|$)/, "argocd"], [/(^|[.-])sentry([.-]|$)/, "sentry"], [/(^|[.-])prometheus([.-]|$)/, "prometheus"], [/(^|[.-])nomad([.-]|$)/, "nomad"], [/(^|[.-])buildkite([.-]|$)/, "buildkite"], [/(^|[.-])(k8s|kube|kubernetes)([.-]|$)/, "kubernetes"]];
+  for (const n of names) for (const [re, tech] of SUB) if (n !== dom && n.endsWith("." + dom) && re.test(n.slice(0, -dom.length - 1))) add(tech, `certificate transparency log lists subdomain ${n}`, `https://crt.sh/?q=${dom}`);
+  return { items: out, dnsOk: cn.length + apexCn.length + txt.length > 0, crtOk: names.size > 0 };
+}
+
+// News: headlines are timing signals (funding, hires, launches, migrations), not proof of a stack.
+async function collectNews(name: string, dom: string) {
+  const q = encodeURIComponent(`"${name}" when:120d`);
+  const xml = await getText(`https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`, 9000);
+  if (!xml) return { ok: false, items: [] as { title: string; link: string; date: string; source: string }[] };
+  const stem = normDomain(dom).split(".")[0], first = name.toLowerCase().split(/\s+/)[0];
+  const items = xml.split(/<item[\s>]/i).slice(1, 15).map((it) => {
+    const title = stripHtml((it.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "").replace(/<!\[CDATA\[|\]\]>/g, ""));
+    const link = (it.match(/<link>([\s\S]*?)<\/link>/i)?.[1] || "").trim();
+    const date = (it.match(/<pubDate>([\s\S]*?)<\/pubDate>/i)?.[1] || "").trim();
+    const source = stripHtml(it.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] || "");
+    return { title, link, date, source };
+  }).filter((x) => x.title && x.link && (x.title.toLowerCase().includes(first) || x.title.toLowerCase().includes(stem)));
+  return { ok: true, items: items.slice(0, 8) };
+}
+
 // ---------- resolver ----------
-async function resolve(acc: any) {
+// Discovery order: what the company's own website links to first (high precision), then name-based guesses (lower confidence).
+async function resolve(acc: any, web: any) {
   const stem = normDomain(acc.domain).split(".")[0];
   const nameSlug = acc.name.toLowerCase().replace(/[^a-z0-9]/g, "");
   const out: any = {};
@@ -152,32 +337,51 @@ async function resolve(acc: any) {
     if (c) { out.github_org = c.org; out.mapping_confidence = c.conf; } else { out.github_org = null; acc.github_org = null; }
   }
   if (!acc.github_org) {
-    for (const cand of [...new Set([stem, nameSlug, "get" + stem, stem + "hq", nameSlug + "hq", stem + "io", stem + "labs", stem + "dev"])]) {
+    for (const o of web?.githubOrgs || []) {
+      const r = await gh(`/orgs/${o.org}`); if (!r.ok) continue;
+      const blog = String(r.data.blog || "").toLowerCase(), login = String(r.data.login).toLowerCase();
+      const conf = blog.includes(dom) || r.data.is_verified ? 0.95 : (login.includes(stem) || login.includes(nameSlug)) ? 0.9 : o.n >= 2 ? 0.75 : 0;
+      if (conf) { out.github_org = r.data.login; out.mapping_confidence = conf; break; }
+    }
+    if (!out.github_org) for (const cand of [...new Set([stem, nameSlug, "get" + stem, stem + "hq", nameSlug + "hq", stem + "io", stem + "labs", stem + "dev"])]) {
       const c = await checkOrg(cand);
       if (c) { out.github_org = c.org; out.mapping_confidence = c.conf; break; }
     }
   }
   if (!acc.ats_provider) {
-    const slugs = [...new Set([stem, nameSlug, acc.name.toLowerCase().replace(/\s+/g, "-"), stem + "labs", stem + "hq"])];
-    const probes = await Promise.all(slugs.map(async (slug) => {
-      const [g, a, l] = await Promise.all([
-        getJSON(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`, {}, 9000),
-        getJSON(`https://api.ashbyhq.com/posting-api/job-board/${slug}`, {}, 9000),
-        getJSON(`https://api.lever.co/v0/postings/${slug}?mode=json&limit=5`, {}, 9000),
-      ]);
-      if (g.ok && g.data?.jobs?.length) return { ats_provider: "greenhouse", ats_slug: slug };
-      if (a.ok && a.data?.jobs?.length) return { ats_provider: "ashby", ats_slug: slug };
-      if (l.ok && Array.isArray(l.data) && l.data.length) return { ats_provider: "lever", ats_slug: slug };
-      return null;
-    }));
-    const hit = probes.find(Boolean); if (hit) Object.assign(out, hit);
+    for (const c of (web?.ats || []).slice(0, 4)) {
+      const j = await collectJobs(c.provider, c.slug);
+      if (j.all > 0) { out.ats_provider = c.provider; out.ats_slug = c.slug; break; }
+    }
+    if (!out.ats_provider) {
+      const slugs = [...new Set([stem, nameSlug, acc.name.toLowerCase().replace(/\s+/g, "-"), stem + "labs", stem + "hq"])];
+      const probes = await Promise.all(slugs.map(async (slug) => {
+        const [g, a, l, w, rc, sr] = await Promise.all([
+          getJSON(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs`, {}, 9000),
+          getJSON(`https://api.ashbyhq.com/posting-api/job-board/${slug}`, {}, 9000),
+          getJSON(`https://api.lever.co/v0/postings/${slug}?mode=json&limit=5`, {}, 9000),
+          getJSON(`https://apply.workable.com/api/v1/widget/accounts/${slug}`, {}, 9000),
+          getJSON(`https://${slug}.recruitee.com/api/offers/`, {}, 9000),
+          getJSON(`https://api.smartrecruiters.com/v1/companies/${slug}/postings?limit=1`, {}, 9000),
+        ]);
+        if (g.ok && g.data?.jobs?.length) return { ats_provider: "greenhouse", ats_slug: slug };
+        if (a.ok && a.data?.jobs?.length) return { ats_provider: "ashby", ats_slug: slug };
+        if (l.ok && Array.isArray(l.data) && l.data.length) return { ats_provider: "lever", ats_slug: slug };
+        if (w.ok && w.data?.jobs?.length) return { ats_provider: "workable", ats_slug: slug };
+        if (rc.ok && rc.data?.offers?.length) return { ats_provider: "recruitee", ats_slug: slug };
+        if (sr.ok && Number(sr.data?.totalFound) > 0) return { ats_provider: "smartrecruiters", ats_slug: slug };
+        return null;
+      }));
+      const hit = probes.find(Boolean); if (hit) Object.assign(out, hit);
+    }
   }
   if (!acc.blog_feed) {
-    const cands = [`https://${dom}/blog/rss.xml`, `https://${dom}/rss.xml`, `https://${dom}/feed.xml`, `https://${dom}/blog/feed.xml`, `https://${dom}/atom.xml`, `https://${dom}/atom`, `https://${dom}/blog/rss`, `https://${dom}/feed`, `https://${dom}/blog/index.xml`, `https://${dom}/index.xml`, `https://${dom}/blog/feed`];
+    const cands = [...(web?.rss || []), `https://${dom}/blog/rss.xml`, `https://${dom}/rss.xml`, `https://${dom}/feed.xml`, `https://${dom}/blog/feed.xml`, `https://${dom}/atom.xml`, `https://${dom}/atom`, `https://${dom}/blog/rss`, `https://${dom}/feed`, `https://${dom}/blog/index.xml`, `https://${dom}/index.xml`, `https://${dom}/blog/feed`];
     const texts = await Promise.all(cands.map((u) => getText(u, 7000)));
     const i = texts.findIndex((t) => t && /<(rss|feed)[\s>]/i.test(t.slice(0, 3000)));
     if (i >= 0) out.blog_feed = cands[i];
   }
+  if (!acc.careers_url && web?.careersUrl) out.careers_url = web.careersUrl;
   return out;
 }
 
@@ -220,8 +424,14 @@ async function collectGitHub(org: string) {
 
 const ENG_RE = /(engineer|developer|sre|devops|platform|infrastructure|architect|data scientist|machine learning|ml |security|reliability|devex|developer experience|technical lead|tech lead)/i;
 const PLAT_RE = /(platform|infrastructure|devops|sre|site reliability|developer experience|devex|developer productivity|build|release|tooling|reliability)/i;
+type Job = { title: string; url: string; text: string; detail?: () => Promise<string> };
+function classify(jobs: Job[]) {
+  const eng = jobs.filter((j) => ENG_RE.test(j.title));
+  return { all: jobs.length, eng, platform: eng.filter((j) => PLAT_RE.test(j.title)) };
+}
 async function collectJobs(provider: string, slug: string) {
-  const jobs: { title: string; url: string; text: string }[] = [];
+  const jobs: Job[] = [];
+  if (!provider || provider === "none" || !slug) return classify(jobs);
   if (provider === "greenhouse") {
     const r = await getJSON(`https://boards-api.greenhouse.io/v1/boards/${slug}/jobs?content=true`, {}, 20000);
     for (const j of r.data?.jobs || []) jobs.push({ title: j.title, url: j.absolute_url, text: stripHtml(j.content || "") });
@@ -231,10 +441,54 @@ async function collectJobs(provider: string, slug: string) {
   } else if (provider === "lever") {
     const r = await getJSON(`https://api.lever.co/v0/postings/${slug}?mode=json`, {}, 20000);
     for (const j of Array.isArray(r.data) ? r.data : []) jobs.push({ title: j.text, url: j.hostedUrl, text: (j.descriptionPlain || "") + " " + (j.lists || []).map((l: any) => stripHtml(l.content || "")).join(" ") + " " + (j.additionalPlain || "") });
+  } else if (provider === "workable") {
+    const r = await getJSON(`https://apply.workable.com/api/v1/widget/accounts/${slug}?details=true`, {}, 20000);
+    for (const j of r.data?.jobs || []) jobs.push({ title: j.title, url: j.url || j.shortlink || `https://apply.workable.com/${slug}`, text: stripHtml(j.description || "") });
+  } else if (provider === "recruitee") {
+    const r = await getJSON(`https://${slug}.recruitee.com/api/offers/`, {}, 20000);
+    for (const j of r.data?.offers || []) jobs.push({ title: j.title, url: j.careers_url || `https://${slug}.recruitee.com`, text: stripHtml((j.description || "") + " " + (j.requirements || "")) });
+  } else if (provider === "personio") {
+    const xml = await getText(`https://${slug}.jobs.personio.de/xml`, 20000) || await getText(`https://${slug}.jobs.personio.com/xml`, 20000);
+    for (const p of (xml || "").split(/<position>/i).slice(1)) {
+      const title = stripHtml((p.match(/<name>([\s\S]*?)<\/name>/i)?.[1] || "").replace(/<!\[CDATA\[|\]\]>/g, ""));
+      const id = p.match(/<id>(\d+)<\/id>/i)?.[1] || "";
+      const text = [...p.matchAll(/<value>([\s\S]*?)<\/value>/gi)].map((m) => stripHtml(m[1].replace(/<!\[CDATA\[|\]\]>/g, ""))).join(" ");
+      if (title) jobs.push({ title, url: `https://${slug}.jobs.personio.de/job/${id}`, text });
+    }
+  } else if (provider === "smartrecruiters") {
+    const r = await getJSON(`https://api.smartrecruiters.com/v1/companies/${slug}/postings?limit=100`, {}, 20000);
+    for (const j of r.data?.content || []) jobs.push({
+      title: j.name, url: `https://jobs.smartrecruiters.com/${slug}/${j.id}`, text: "",
+      detail: async () => { const d = await getJSON(`https://api.smartrecruiters.com/v1/companies/${slug}/postings/${j.id}`, {}, 12000); const s = d.data?.jobAd?.sections || {}; return stripHtml(["jobDescription", "qualifications", "additionalInformation"].map((k) => s[k]?.text || "").join(" ")); },
+    });
+  } else if (provider === "bamboohr") {
+    const r = await getJSON(`https://${slug}.bamboohr.com/careers/list`, {}, 20000);
+    for (const j of r.data?.result || []) jobs.push({
+      title: j.jobOpeningName, url: `https://${slug}.bamboohr.com/careers/${j.id}`, text: "",
+      detail: async () => { const d = await getJSON(`https://${slug}.bamboohr.com/careers/${j.id}/detail`, {}, 12000); return stripHtml(d.data?.result?.jobOpening?.description || ""); },
+    });
+  } else if (provider === "workday") {
+    const [host, tenant, site] = slug.split("|");
+    if (host && tenant && site) {
+      const base = `https://${host}/wday/cxs/${tenant}/${site}`;
+      for (let off = 0; off < 60; off += 20) {
+        const r = await postJSON(`${base}/jobs`, { appliedFacets: {}, limit: 20, offset: off, searchText: "engineer" }, 15000);
+        const ps = r.data?.jobPostings || []; if (!ps.length) break;
+        for (const j of ps) jobs.push({
+          title: j.title, url: `https://${host}/${site}${j.externalPath || ""}`, text: "",
+          detail: async () => { const d = await getJSON(`${base}${j.externalPath}`, {}, 12000); return stripHtml(d.data?.jobPostingInfo?.jobDescription || ""); },
+        });
+        if (ps.length < 20) break;
+      }
+    }
   }
-  const eng = jobs.filter((j) => ENG_RE.test(j.title));
-  return { all: jobs.length, eng, platform: eng.filter((j) => PLAT_RE.test(j.title)) };
+  const res = classify(jobs);
+  // providers that list titles only: fetch the description for the first six engineering roles
+  const need = [...res.platform, ...res.eng.filter((j) => !res.platform.includes(j))].filter((j) => j.detail && !j.text).slice(0, 6);
+  await Promise.all(need.map(async (j) => { try { j.text = await j.detail!(); } catch { /* skip */ } }));
+  return res;
 }
+const atsUrl = (p: string, s: string, careers: string | null) => p === "greenhouse" ? `https://boards.greenhouse.io/${s}` : p === "ashby" ? `https://jobs.ashbyhq.com/${s}` : p === "lever" ? `https://jobs.lever.co/${s}` : p === "workable" ? `https://apply.workable.com/${s}` : p === "smartrecruiters" ? `https://jobs.smartrecruiters.com/${s}` : p === "recruitee" ? `https://${s}.recruitee.com` : p === "personio" ? `https://${s}.jobs.personio.de` : p === "bamboohr" ? `https://${s}.bamboohr.com/careers` : p === "workday" ? `https://${s.split("|")[0]}` : (careers || "https://" + s);
 
 async function collectBlog(feed: string | null) {
   if (!feed) return [];
@@ -388,17 +642,26 @@ async function refresh(accountId: string, trigger: string) {
   const { data: runRow } = await SB.from("pipeline_runs").insert({ account_id: accountId, trigger, status: "running" }).select().single();
 
   try {
+    // 0 validate + crawl the website (also the source of discovery by link)
+    const dom0 = normDomain(acc.domain);
+    if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(dom0)) throw new Error(`"${acc.domain}" is not a valid domain. Use the company's website domain, for example example.com`);
+    const web: any = SOURCES.website !== false ? await collectWebsite(dom0, acc.careers_url) : { ok: false, off: true, pages: [], githubOrgs: [], ats: [], rss: [], jsonld: [], careersUrl: null, fetched: 0 };
     // 1 resolve
-    const resolved = await resolve(acc);
+    const resolved = await resolve(acc, web);
     if (Object.keys(resolved).length) { await SB.from("watchlist").update(resolved).eq("id", accountId); Object.assign(acc, resolved); }
 
     // 2 collect
-    const [ghd, jobs, posts, customRes] = await Promise.all([
+    const [ghd, jobsA, posts, customRes, fp, news] = await Promise.all([
       acc.github_org && SOURCES.github !== false ? collectGitHub(acc.github_org) : Promise.resolve(null),
-      acc.ats_provider && SOURCES.job_board !== false ? collectJobs(acc.ats_provider, acc.ats_slug) : Promise.resolve(null),
+      acc.ats_provider && acc.ats_provider !== "none" && SOURCES.job_board !== false ? collectJobs(acc.ats_provider, acc.ats_slug) : Promise.resolve(null),
       SOURCES.blog !== false ? collectBlog(acc.blog_feed) : Promise.resolve([]),
       collectCustom(acc),
+      SOURCES.fingerprint !== false ? collectFingerprint(dom0, web.home) : Promise.resolve(null),
+      SOURCES.news !== false ? collectNews(acc.name, dom0) : Promise.resolve(null),
     ]);
+    let jobs: { all: number; eng: Job[]; platform: Job[] } | null = jobsA, jobsVia: string = acc.ats_provider || "";
+    if ((!jobs || !jobs.all) && SOURCES.job_board !== false && web.jsonld?.length) { jobs = classify(web.jsonld); jobsVia = "careers page"; }
+    const webPages = (web.pages || []).filter((p: any) => ["careers", "engineering", "security"].includes(p.kind));
 
     // 3 extract -> raw evidence
     type Ev = { tech: string; category: string; source: string; strength: string; url: string; quote: string; migration?: boolean };
@@ -445,6 +708,29 @@ async function refresh(accountId: string, trigger: string) {
       ev.push({ tech: key, category: VOCAB[key].cat, source: c.slug, strength: "narrative", url: c.url, quote: sentenceAround(c.text, m.index + m[1].length) });
     }
 
+    // website pages (careers, engineering, security only: marketing pages overclaim) and the no-ATS Gemini pass
+    for (const p of webPages) for (const [alias, key] of ALIAS) {
+      if (alias.length <= 3 || VOCAB[key].cat === "language") continue;
+      const m = p.text.toLowerCase().match(termRe(alias)); if (!m || m.index == null) continue;
+      const q = sentenceAround(p.text, m.index + m[1].length);
+      ev.push({ tech: key, category: VOCAB[key].cat, source: "website", strength: ALT_RE.test(q) && /,|\bor\b/.test(q) ? "alternative" : "narrative", url: p.url, quote: q });
+    }
+    if (!jobs?.eng.length && webPages.length) {
+      const pick = webPages.slice(0, 4).map((p: any) => ({ title: p.kind + " page", url: p.url, text: p.text }));
+      try {
+        const body = pick.map((j: any, i: number) => `### JOB ${i}: ${j.title}\n${j.text.slice(0, 2600)}`).join("\n\n");
+        const { model, out } = await gemini(P1_SYSTEM, body, P1_SCHEMA); p1Model = p1Model || model;
+        const norm = (s: string) => s.toLowerCase().replace(/\s+/g, " ").trim();
+        for (const it of out.items || []) {
+          const s = pick[it.job]; if (!s || !norm(s.text).includes(norm(it.quote))) continue;
+          const key = canon(it.tech); if (!key || VOCAB[key].cat === "language") continue;
+          ev.push({ tech: key, category: VOCAB[key].cat, source: "website", strength: it.strength === "alternative" ? "alternative" : "narrative", url: s.url, quote: it.quote });
+        }
+      } catch (_e) { /* best effort */ }
+    }
+    for (const f of fp?.items || []) ev.push({ tech: f.tech, category: VOCAB[f.tech].cat, source: "fingerprint", strength: "narrative", url: f.url, quote: f.quote });
+    for (const n of news?.items || []) for (const [alias, key] of ALIAS) if (alias.length > 3 && VOCAB[key].cat !== "language" && termRe(alias).test(n.title)) ev.push({ tech: key, category: VOCAB[key].cat, source: "news", strength: "narrative", url: n.link, quote: n.title });
+
     // 4 fuse into ledger (one fact per tech+source, best evidence kept)
     const { data: ovr } = await SB.from("overrides").select("*").eq("account_id", accountId);
     const byTech = new Map<string, Ev[]>(); ev.forEach((e) => (byTech.get(e.tech) ?? byTech.set(e.tech, []).get(e.tech)!).push(e));
@@ -459,20 +745,28 @@ async function refresh(accountId: string, trigger: string) {
       else if (sources.has("github") && sources.size > 1) { conf = 0.95; }
       else if (sources.has("github")) { conf = 0.8; }
       else if (sources.has("job_post")) { state = strong.some((e) => e.strength === "required") ? "hiring_only" : "emerging"; conf = Math.min(0.85, 0.45 + 0.1 * strong.length); }
+      else if ([...sources].every((s) => s === "fingerprint")) { conf = 0.55; }
+      else if ([...sources].every((s) => s === "fingerprint" || s === "news")) { conf = 0.5; }
       else { conf = 0.6; }
       const o = (ovr || []).find((x: any) => x.tech === tech); if (o) { state = o.forced_state; conf = 1; }
       const per = new Map<string, Ev>(); for (const e of list.sort((a, b) => rank(b.strength) - rank(a.strength))) if (!per.has(e.source)) per.set(e.source, e);
       for (const e of per.values()) facts.push({ fid: `F${n++}`, tech, category: e.category, state, confidence: r2(conf), source: e.source, strength: e.strength, source_url: e.url, quote: e.quote });
     }
     const engRoles = jobs?.eng.length ?? null, platRoles = jobs?.platform.length ?? null;
-    if (jobs) facts.push({ fid: `F${n++}`, tech: "hiring", category: "activity", state: "active", confidence: 1, source: "job_post", strength: "narrative", source_url: acc.ats_provider === "greenhouse" ? `https://boards.greenhouse.io/${acc.ats_slug}` : acc.ats_provider === "ashby" ? `https://jobs.ashbyhq.com/${acc.ats_slug}` : `https://jobs.lever.co/${acc.ats_slug}`, quote: `${engRoles} open engineering roles, ${platRoles} of them platform/infrastructure (${jobs.platform.slice(0, 3).map((j) => j.title).join("; ")})` });
+    if (jobs?.all) facts.push({ fid: `F${n++}`, tech: "hiring", category: "activity", state: "active", confidence: 1, source: "job_post", strength: "narrative", source_url: jobsVia === "careers page" ? (acc.careers_url || web.careersUrl || `https://${dom0}`) : atsUrl(acc.ats_provider, acc.ats_slug, acc.careers_url), quote: `${engRoles} open engineering roles, ${platRoles} of them platform/infrastructure (${jobs.platform.slice(0, 3).map((j) => j.title).join("; ")})` });
     if (ghd?.ok) facts.push({ fid: `F${n++}`, tech: "github activity", category: "activity", state: "active", confidence: 1, source: "github", strength: "narrative", source_url: `https://github.com/${acc.github_org}`, quote: `${ghd.active30} of ${ghd.publicRepos} public repos pushed in the last 30 days` });
     posts.slice(0, 3).forEach((p) => facts.push({ fid: `F${n++}`, tech: "blog post", category: "narrative", state: "active", confidence: 1, source: "blog", strength: "narrative", source_url: p.link, quote: p.title }));
+
+    const NEWS_RE = /(raises|funding|series [a-e]\b|acquir|appoint|new (cto|vp|head)|launch|migrat|moves to|expands|hires|layoff)/i;
+    const newsSorted = [...(news?.items || [])].sort((a, b) => Number(NEWS_RE.test(b.title)) - Number(NEWS_RE.test(a.title)));
+    newsSorted.slice(0, 4).forEach((nw) => facts.push({ fid: `F${n++}`, tech: "news item", category: "narrative", state: "active", confidence: 0.6, source: "news", strength: "narrative", source_url: nw.link, quote: nw.title }));
 
     // 5 score
     const coreFacts = facts.filter((f) => f.state !== "noise");
     const srcCount = new Set(coreFacts.map((f) => f.source)).size;
-    const tier = coreFacts.length >= 8 && srcCount >= 2 ? "A" : coreFacts.length >= 3 ? "B" : "C";
+    const solidSrc = new Set(coreFacts.filter((f) => f.source !== "fingerprint" && f.source !== "news").map((f) => f.source));
+    void srcCount;
+    const tier = coreFacts.length >= 8 && solidSrc.size >= 2 ? "A" : coreFacts.length >= 3 && solidSrc.size >= 1 ? "B" : "C";
     const has = (t: string) => coreFacts.some((f) => f.tech === t);
     const fidOf = (t: string, src?: string) => coreFacts.filter((f) => f.tech === t && (!src || f.source === src)).map((f) => f.fid);
     const hyps: any[] = [];
@@ -484,6 +778,7 @@ async function refresh(accountId: string, trigger: string) {
       if (c.m === "has") return (c.v || []).some((t: string) => has(t));
       if (c.m === "blog_match") { try { return posts.some((p) => new RegExp(c.v, "i").test(p.title)); } catch { return false; } }
       if (c.m === "no_other") return hyps.length === 0;
+      if (c.m === "news_match") { try { return facts.some((f) => f.tech === "news item" && new RegExp(c.v, "i").test(f.quote)); } catch { return false; } }
       const val = metricVal[c.m]; if (val == null) return false;
       return cmp(val, c.op || ">=", Number(c.v));
     };
@@ -496,6 +791,7 @@ async function refresh(accountId: string, trigger: string) {
       else if (ek === "hiring") evid = facts.filter((f) => f.tech === "hiring").map((f) => f.fid);
       else if (ek === "tech") evid = (pb.evidence.techs || []).flatMap((t: string) => fidOf(t)).slice(0, pb.evidence.max || 3);
       else if (ek === "blog") { const re = conds.find((c: any) => c.m === "blog_match"); const bp = posts.find((p) => { try { return new RegExp(re.v, "i").test(p.title); } catch { return false; } }); const f = bp && facts.find((x) => x.tech === "blog post" && x.quote === bp.title); evid = f ? [f.fid] : []; }
+      else if (ek === "news") { const re = conds.find((c: any) => c.m === "news_match"); try { evid = facts.filter((f) => f.tech === "news item" && new RegExp(re.v, "i").test(f.quote)).map((f) => f.fid).slice(0, 2); } catch { evid = []; } }
       else if (ek === "activity") evid = facts.filter((f) => f.tech === "github activity").map((f) => f.fid);
       if (!evid.length) continue; // a hypothesis without a citable fact is dropped
       const mv = pb.metric ? Number(metricVal[pb.metric] ?? 0) : 0;
@@ -509,9 +805,13 @@ async function refresh(accountId: string, trigger: string) {
     const diff: string[] = [];
     if (!prev) diff.push("First snapshot");
     else {
-      const prevTech = new Set((prev.tech || []).map((t: any) => t.tech)); const curTech = new Set(coreFacts.map((f) => f.tech));
-      for (const t of curTech) if (!prevTech.has(t) && !["blog post", "hiring", "github activity"].includes(t)) diff.push(`New signal: ${t}`);
-      for (const t of prevTech) if (!curTech.has(t as string) && !["blog post", "hiring", "github activity"].includes(t as string)) diff.push(`Signal gone: ${t}`);
+      const soft = (s: string) => s === "fingerprint" || s === "news"; // best-effort sources never drive a diff on their own
+      const SKIP = ["blog post", "hiring", "github activity", "news item"];
+      const prevTech = new Set((prev.tech || []).filter((t: any) => !soft(t.source)).map((t: any) => t.tech)); const curTech = new Set(coreFacts.filter((f) => !soft(f.source)).map((f) => f.tech));
+      for (const t of curTech) if (!prevTech.has(t) && !SKIP.includes(t as string)) diff.push(`New signal: ${t}`);
+      for (const t of prevTech) if (!curTech.has(t as string) && !SKIP.includes(t as string)) diff.push(`Signal gone: ${t}`);
+      const prevNews = new Set((prev.news || []).map((x: any) => x.title)); const freshNews = (news?.items || []).find((x) => NEWS_RE.test(x.title) && !prevNews.has(x.title));
+      if (freshNews && (prev.news || []).length) diff.push(`In the news: ${freshNews.title.slice(0, 110)}`);
       if (engRoles != null && prev.eng_roles != null && Math.abs(engRoles - prev.eng_roles) >= 3) diff.push(`Engineering roles ${prev.eng_roles} → ${engRoles}`);
       if (platRoles != null && prev.platform_roles != null && platRoles !== prev.platform_roles) diff.push(`Platform roles ${prev.platform_roles} → ${platRoles}`);
       if (ghd?.ci != null && prev.ci_median_min != null && Math.abs(ghd.ci - prev.ci_median_min) / prev.ci_median_min >= 0.2) diff.push(`CI median ${prev.ci_median_min} → ${ghd.ci} min`);
@@ -523,11 +823,27 @@ async function refresh(accountId: string, trigger: string) {
     const { data: lastBrief } = await SB.from("briefs").select("id, snapshot_id, used_fallback, model").eq("account_id", accountId).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const material = !prev || !lastBrief || lastBrief.used_fallback || lastBrief.model === "template" || diff.length > 0 || prev.fact_sheet_hash !== fsHash;
 
+    const off = { ok: false, detail: "turned off in Settings" };
+    const cov: any = {
+      github: ghd ? { ok: !!ghd.ok, detail: ghd.ok ? `${acc.github_org} · ${ghd.publicRepos} public repos` : `org ${acc.github_org} could not be read` } : { ok: false, detail: SOURCES.github === false ? off.detail : "no GitHub org found" },
+      jobs: jobs?.all ? { ok: true, detail: `${jobsVia} · ${jobs.all} open roles, ${jobs.eng.length} engineering` } : { ok: false, detail: acc.ats_provider && acc.ats_provider !== "none" ? `${acc.ats_provider} returned no roles` : "no job board found" },
+      blog: { ok: posts.length > 0, detail: posts.length ? `${posts.length} recent posts` : acc.blog_feed ? "feed is empty" : "no RSS feed found" },
+      website: web.off ? off : { ok: !!web.ok, detail: web.blocked ? "robots.txt asks crawlers to stay out" : web.ok ? `${web.fetched} pages read${web.careersUrl ? ", careers page found" : ""}` : "site did not load" },
+      fingerprint: fp ? { ok: fp.items.length > 0, detail: fp.items.length ? `${fp.items.length} infrastructure hint${fp.items.length > 1 ? "s" : ""}` : "no public hints" } : off,
+      news: news ? { ok: news.ok && news.items.length > 0, detail: news.ok ? `${news.items.length} recent headline${news.items.length === 1 ? "" : "s"}` : "news feed unavailable" } : off,
+      tier, at: new Date().toISOString(), hints: [] as string[],
+    };
+    if (!cov.github.ok) cov.hints.push("No public GitHub org found. If the company publishes code, add the org in Fix sources.");
+    if (!cov.jobs.ok) cov.hints.push("No job board found. Paste the careers page URL, or pick the ATS and its slug.");
+    if (web.blocked) cov.hints.push("The website's robots.txt blocks crawlers, so Scout read only public APIs and feeds.");
+    else if (!cov.website.ok && !web.off) cov.hints.push("The website did not load. Check the domain.");
+    if (tier === "C") cov.hints.push("Evidence is thin, so no opener was written. Add a source above and refresh.");
+
     const { data: snap, error: snapErr } = await SB.from("snapshots").insert({
       account_id: accountId, languages: ghd?.languages ?? {}, tech: coreFacts.map((f) => ({ tech: f.tech, category: f.category, state: f.state, confidence: f.confidence, source: f.source })),
       ci_median_min: ghd?.ci ?? null, ci_runs_sampled: ghd?.ciRuns ?? null, ci_repo: ghd?.ciRepo ?? null, eng_roles: engRoles, platform_roles: platRoles,
       active_repos_30d: ghd?.active30 ?? null, public_repos: ghd?.publicRepos ?? null, blog_posts: posts.slice(0, 5), evidence_tier: tier, icp_fit: icp, why_now: whyNow,
-      hypotheses: hyps, fact_sheet_hash: fsHash, material, diff,
+      hypotheses: hyps, fact_sheet_hash: fsHash, material, diff, news: (news?.items || []).slice(0, 8),
     }).select().single();
     if (snapErr) throw snapErr;
     await SB.from("signals").insert(facts.map((f) => ({ ...f, account_id: accountId, snapshot_id: snap.id })));
@@ -587,7 +903,7 @@ async function refresh(accountId: string, trigger: string) {
         try { await fetch(pushUrl, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${SB_SERVICE}` }, body: JSON.stringify({ account_id: accountId, mode: "alert", reason: diff.slice(0, 3).join("; ") }) }); } catch (_e) { /* best effort */ }
       }
     }
-    await SB.from("watchlist").update({ refresh_status: "ok", last_refreshed_at: new Date().toISOString(), refresh_error: null }).eq("id", accountId);
+    await SB.from("watchlist").update({ refresh_status: "ok", last_refreshed_at: new Date().toISOString(), refresh_error: null, coverage: cov }).eq("id", accountId);
     await SB.from("pipeline_runs").update({ finished_at: new Date().toISOString(), status: "ok", github_calls: ghCalls, gemini_calls: gemCalls, material, verifier_failed: verifierFailed, repaired, used_fallback: fallback, duration_ms: Date.now() - t0 }).eq("id", runRow.id);
     return { ok: true, tier, facts: facts.length, material, diff, p1Model, ghCalls, gemCalls };
   } catch (e) {

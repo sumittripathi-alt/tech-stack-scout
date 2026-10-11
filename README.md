@@ -75,3 +75,16 @@ Demo rows have `watchlist.is_demo = true`; the weekly cron and the Edge Function
 **Hot accounts** refresh daily. **Owner** is a label with a filter, not a login.
 
 Edge Functions: `scout-refresh`, `scout-push`, `scout-digest`, `scout-ask`. Cron: weekly refresh, per-minute queue drain, daily hot refresh, weekly radar, Monday digest.
+
+## Collection v7: robust sources for any company
+
+Scout no longer depends on a company having a public GitHub org. For every account it now:
+
+1. **Reads the website politely** (robots.txt respected, identifying user agent): homepage plus careers, engineering and security pages found by link. Only those pages feed tech evidence; marketing pages are ignored.
+2. **Discovers sources by link, not by guess**: GitHub orgs, job boards and RSS feeds linked from the site are verified before use. Name-based guessing stays as a lower-confidence fallback.
+3. **Reads more job boards**: Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Recruitee, Personio, BambooHR, Workday, plus schema.org JobPosting on the careers page.
+4. **Fingerprints infrastructure** from response headers, script hosts, DNS and certificate-transparency subdomains (confidence 0.55, always hedged).
+5. **Watches the news** (Google News RSS) for funding, hires, launches and migrations; a new `news_trigger` playbook uses it.
+6. **Shows coverage**: each account lists which sources worked, hints for the ones that did not, and a "Fix sources" panel (GitHub org, job board, careers URL, blog feed) that saves and refreshes.
+
+Evidence tiers count only first-party sources (GitHub, job boards, website, blog). Fingerprints and news never lift an account to Tier A or B on their own, and an account with thin evidence gets discovery questions instead of an invented opener.

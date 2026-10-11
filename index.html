@@ -473,7 +473,7 @@ async function loadLive() {
     const hist = snaps.filter(s => s.account_id === a.id);
     return {
       id: a.id, name: a.name, domain: a.domain, persona: a.persona, stage: a.stage, hot: !!a.hot, owner: a.owner || '', radar: radar.find(r => r.account_id === a.id) || null, active: a.active, status: a.refresh_status, error: a.refresh_error,
-      last_refreshed: a.last_refreshed_at, github_org: a.github_org, ats: a.ats_provider ? `${a.ats_provider}:${a.ats_slug}` : null, blog: a.blog_feed,
+      last_refreshed: a.last_refreshed_at, github_org: a.github_org, ats_provider: a.ats_provider || '', ats_slug: a.ats_slug || '', careers_url: a.careers_url || '', coverage: a.coverage || null, ats: a.ats_provider ? `${a.ats_provider}:${a.ats_slug}` : null, blog: a.blog_feed,
       mapping_confidence: +a.mapping_confidence || 0, tier: a.evidence_tier || 'C', icp: +a.icp_fit || 0, why_now: +a.why_now || 0,
       languages: a.languages || {}, ci: a.ci_median_min != null ? +a.ci_median_min : null, ci_repo: a.ci_repo, eng_roles: a.eng_roles, platform_roles: a.platform_roles,
       active30: a.active_repos_30d, public_repos: a.public_repos, posts: a.blog_posts || [], hyps: a.hypotheses || [], diff: a.diff || [], competitor: a.competitor || null, demo: !!a.is_demo,
@@ -718,6 +718,7 @@ function renderDetail(a) {
     <div class="hd"><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]};width:40px;height:40px;font-size:14px">${initials(a.name)}</span><div><h3 style="font-size:18px">${esc(a.name)}</h3><p class="sub">${esc(a.domain)} · ${a.github_org ? 'github.com/' + esc(a.github_org) : 'no GitHub org'} · ${a.ats ? esc(a.ats) : 'no job board'} · refreshed ${ago(a.last_refreshed)}</p></div>
       <span class="end"><span class="pill ${a.tier}">Tier ${a.tier}</span>${isLive && !a.demo ? `<button class="btn" id="refreshBtn">Refresh now</button>` : ''}</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${flags}</div>
+    ${coverageHTML(a)}
     <div class="toolbar"><span class="sub">Opening line for</span><select id="persona" aria-label="Persona">${['VP Engineering', 'Platform Lead', 'DevOps Manager', 'Staff Engineer'].map(p => `<option ${p === a.persona ? 'selected' : ''}>${p}</option>`).join('')}</select>${b.hook ? `<span class="pill hook">${esc(b.hook.replace('_', ' '))}</span>` : ''}</div>
     ${b.opener ? `<div class="opener" id="openerBox"><span id="openerText">${esc(b.opener)}</span>${citeHTML(b.cites)}</div>
       <div class="toolbar"><button class="btn ok" data-fb="used_as_is">Use as is</button><button class="btn" id="editBtn">Edit</button><button class="btn" id="copyBtn">Copy</button><button class="btn bad" data-fb="rejected">Reject</button></div>`
@@ -961,6 +962,23 @@ function radarCard(a) {
     <ul style="margin:0;padding-left:18px;color:var(--ink-2)">${(r.drivers || []).map(d => `<li>${esc(d)}</li>`).join('')}</ul>
     ${ref ? `<p class="sub" style="margin:0;display:block">${ref}</p>` : ''}${look ? `<p class="sub" style="margin:0;display:block">${look}</p>` : ''}</article>`;
 }
+const COV_LABEL = {github: 'GitHub', jobs: 'Job board', blog: 'Blog feed', website: 'Website', fingerprint: 'Infra hints', news: 'News'};
+const ATS_LIST = ['none', 'greenhouse', 'lever', 'ashby', 'workable', 'smartrecruiters', 'recruitee', 'personio', 'bamboohr', 'workday'];
+function coverageHTML(a) {
+  const c = a.coverage; if (!c || a.demo) return '';
+  const chips = Object.keys(COV_LABEL).filter(k => c[k]).map(k => `<span class="pill ${c[k].ok ? 'ok' : ''}" title="${esc(c[k].detail)}">${c[k].ok ? '✓' : '○'} ${COV_LABEL[k]}: ${esc(c[k].detail)}</span>`).join(' ');
+  const hints = (c.hints || []).length ? `<ul class="sub" style="margin:6px 0 0 18px">${c.hints.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : '';
+  const open = (c.hints || []).length ? ' open' : '';
+  return `<div class="note" style="margin:8px 0"><div style="display:flex;gap:6px;flex-wrap:wrap">${chips}</div>${hints}
+  <details${open} style="margin-top:8px"><summary class="sub" style="cursor:pointer">Fix sources</summary>
+   <div class="cfg" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin-top:8px">
+    <label class="sub">GitHub org<input id="fxGh" value="${esc(a.github_org || '')}" placeholder="e.g. vercel"></label>
+    <label class="sub">Job board<select id="fxAts">${ATS_LIST.map(p => `<option ${p === (a.ats_provider || 'none') ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
+    <label class="sub">Board slug<input id="fxSlug" value="${esc(a.ats_slug || '')}" placeholder="workday: host|tenant|site"></label>
+    <label class="sub">Careers page URL<input id="fxCareers" value="${esc(a.careers_url || '')}" placeholder="https://…/careers"></label>
+    <label class="sub">Blog RSS / Atom<input id="fxBlog" value="${esc(a.blog || '')}" placeholder="https://…/feed.xml"></label>
+   </div><div class="toolbar"><button class="btn ok" id="fxSave">Save and refresh</button><span class="sub">Leave a field empty to let Scout find it again.</span></div></details></div>`;
+}
 function actionBar(a) {
   const b = a.brief || {};
   return `<div class="toolbar">${b.opener ? '<button class="btn" id="gmailBtn">Open in Gmail</button><button class="btn" id="pushBtn">Send to Slack / CRM</button>' : ''}<select id="stageSel" aria-label="Stage">${['Prospect', 'Contacted', 'Replied', 'Meeting', 'Opportunity', 'Won', 'Lost'].map(x => `<option ${x === a.stage ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="hot" id="hotBtn" aria-pressed="${!!a.hot}" title="Hot accounts refresh daily">${a.hot ? '★ hot' : '☆ hot'}</button></div>`;
@@ -970,6 +988,20 @@ function wireExtras(a, d) {
   $('#pushBtn') && ($('#pushBtn').onclick = async () => {
     if (M.mode !== 'live' || a.demo) { toast('Pushing works on live accounts. Add a Slack or webhook target in Settings first.'); return; }
     try { const r = await fetch(CFG.url + '/functions/v1/scout-push', {method: 'POST', headers: H(), body: JSON.stringify({account_id: a.id, mode: 'push'})}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); if (!j.results?.length) toast('No output targets yet. Add one in Settings, Outputs.'); else toast(j.results.map(x => `${x.label || 'target'}: ${x.ok ? 'sent' : x.error}`).join(' · ')); } catch (e) { toast('Push failed: ' + e.message); }
+  });
+  $('#fxSave') && ($('#fxSave').onclick = async () => {
+    if (M.mode !== 'live' || a.demo) { toast('Source fixes apply to live accounts'); return; }
+    const v = id => ($(id).value || '').trim();
+    const gh = v('#fxGh').replace(/^https?:\/\/github\.com\//i, '').replace(/\/.*$/, ''), prov = v('#fxAts'), slug = v('#fxSlug'), car = v('#fxCareers'), blog = v('#fxBlog');
+    if (car && !/^https?:\/\//i.test(car)) { toast('Careers URL must start with https://'); return; }
+    if (blog && !/^https?:\/\//i.test(blog)) { toast('Blog feed must start with https://'); return; }
+    if (prov !== 'none' && prov && !slug) { toast('Add the board slug, or choose none to let Scout look again'); return; }
+    const body = {github_org: gh || null, mapping_confidence: gh ? 1 : 0, ats_provider: prov === 'none' && !slug ? null : prov, ats_slug: slug || null, careers_url: car || null, blog_feed: blog || null, last_refreshed_at: null};
+    try {
+      await rest(`watchlist?id=eq.${a.id}`, {method: 'PATCH', body: JSON.stringify(body), headers: {Prefer: 'return=minimal'}});
+      await rest('rpc/queue_refresh_now', {method: 'POST', body: JSON.stringify({p_account: a.id})});
+      toast('Saved. Refreshing now, results in about a minute.'); a.github_org = body.github_org; a.status = 'queued'; render();
+    } catch (e) { toast('Could not save: ' + e.message); }
   });
   $('#stageSel') && ($('#stageSel').onchange = e => patchAcc(a.id, {stage: e.target.value}, 'stage'));
   $('#hotBtn') && ($('#hotBtn').onclick = () => patchAcc(a.id, {hot: !a.hot}, 'hot'));
