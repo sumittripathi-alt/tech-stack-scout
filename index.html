@@ -384,6 +384,7 @@ function countUp(node, to, fmt = v => Math.round(v).toLocaleString('en-US'), ms 
   const t0 = performance.now(); const step = t => { const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3); node.textContent = fmt(to * e); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step);
 }
 function initials(n) { return n.split(/[\s.-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); }
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 const short = n => n.length > 11 ? n.split(' ')[0].slice(0, 11) : n;
 
 /* ---------- state ---------- */
@@ -499,7 +500,7 @@ function sankey(svg) {
     el('title', {}, r, `${k}: ${n} account${n > 1 ? 's' : ''}`);
     if (p.h >= 14) el('text', {x: xs[ci] + nodeW / 2, y: p.y + p.h / 2 + 4, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: '#fff'}, svg, (k.replace('_', ' ').length > 13 ? k.replace('_', ' ').slice(0, 12) + '…' : k.replace('_', ' ')));
   }));
-  $('#flowBig').textContent = A.length + ' accounts';
+  $('#flowBig').textContent = plural(A.length, 'account');
   $('#flowDelta').textContent = cols[0][0] ? `${cols[0][0][0]} leads` : '—';
 }
 
@@ -611,7 +612,7 @@ function renderDashboard() {
   $('#readyPill').textContent = `${R.length}/${A.length} briefs`;
   const series = M.mode === 'demo' ? M.weekly.map(w => w.accounts - w.failed) : M.runs.slice(0, 30).reverse().map(r => r.status === 'ok' ? 1 : 0).reduce((acc, v) => (acc.push((last(acc) || 0) + v), acc), []);
   spark($('#spark1'), series, '#4ADE80');
-  countUp($('#factsBig'), S.length); $('#factsSub').textContent = `${new Set(S.map(s => s.account.id)).size} accounts · ${S.filter(s => s.source === 'job_post').length} from job posts`;
+  countUp($('#factsBig'), S.length); $('#factsSub').textContent = `${plural(new Set(S.map(s => s.account.id)).size, 'account')} · ${S.filter(s => s.source === 'job_post').length} from job posts`;
   spark($('#spark2'), A.map(a => a.signals.length).sort((x, y) => x - y), '#FACC15');
   countUp($('#callBig'), C.length); $('#callSub').textContent = C.length ? C.slice(0, 3).map(a => a.name).join(', ') : 'No account has both fit and timing yet';
   spark($('#spark3'), [...A].sort((a, b) => a.why_now - b.why_now).map(a => a.why_now), '#FB923C');
@@ -619,7 +620,7 @@ function renderDashboard() {
   const top = [...A].sort((a, b) => b.why_now * b.icp - a.why_now * a.icp)[0];
   const changed = A.filter(a => (a.diff || []).some(d => d !== 'First snapshot')).length;
   $('#heroTitle').textContent = top ? `${top.name} is the account to call this week.` : 'Add companies to start the weekly brief.';
-  $('#heroText').textContent = top ? `${A.length} accounts re-read from GitHub, job boards and engineering blogs. ${changed} changed materially since the last run; the rest stay quiet.` : 'Each company you add is researched within minutes, then refreshed every Monday.';
+  $('#heroText').textContent = top ? `${plural(A.length, 'account')} re-read from GitHub, job boards and engineering blogs. ${changed} changed materially since the last run; the rest stay quiet.` : 'Each company you add is researched within minutes, then refreshed every Monday.';
   $('#navCount').textContent = A.length;
 }
 

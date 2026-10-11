@@ -213,27 +213,34 @@ async function collectBlog(feed: string | null) {
 }
 
 // ---------- Gemini ----------
+// Works with AI Studio keys (generativelanguage) and Vertex AI express-mode keys (aiplatform). Errors never echo the key.
 async function gemini(system: string, user: string, schema: any, temperature = 0) {
-  if (!GEMINI_KEY) throw new Error("GEMINI_API_KEY secret is not set");
-  let lastErr = "";
+  const key = (GEMINI_KEY || "").replace(/\s+/g, "");
+  if (!key) throw new Error("GEMINI_API_KEY secret is not set");
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts: [{ text: user }] }],
+    generationConfig: { temperature, responseMimeType: "application/json", responseSchema: schema },
+  });
+  const endpoints = (m: string) => [
+    { name: "ai-studio", url: `https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, headers: { "x-goog-api-key": key } },
+    { name: "vertex-express", url: `https://aiplatform.googleapis.com/v1/publishers/google/models/${m}:generateContent?key=${encodeURIComponent(key)}`, headers: {} },
+  ];
+  const errs: string[] = [];
   for (const model of MODELS) {
-    gemCalls++;
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: [{ role: "user", parts: [{ text: user }] }],
-        generationConfig: { temperature, responseMimeType: "application/json", responseSchema: schema },
-      }),
-    });
-    if (r.status === 404 || r.status === 400) { lastErr = `${model}: ${r.status} ${(await r.text()).slice(0, 200)}`; continue; }
-    if (r.status === 429) { await sleep(4000); lastErr = `${model}: rate limited`; continue; }
-    if (!r.ok) { lastErr = `${model}: ${r.status}`; continue; }
-    const j = await r.json();
-    const txt = j.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ?? "";
-    return { model, out: JSON.parse(txt) };
+    for (const ep of endpoints(model)) {
+      gemCalls++;
+      let r: Response;
+      try { r = await fetch(ep.url, { method: "POST", headers: { "Content-Type": "application/json", ...ep.headers }, body }); }
+      catch (e) { errs.push(`${ep.name}/${model}: network`); continue; }
+      if (r.status === 429) { await sleep(4000); errs.push(`${ep.name}/${model}: 429`); continue; }
+      if (!r.ok) { const t = (await r.text()).split(key).join("[key]"); errs.push(`${ep.name}/${model}: ${r.status} ${t.replace(/\s+/g, " ").slice(0, 90)}`); continue; }
+      const j = await r.json();
+      const txt = j.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join("") ?? "";
+      return { model: `${model} (${ep.name})`, out: JSON.parse(txt) };
+    }
   }
-  throw new Error("Gemini failed: " + lastErr);
+  throw new Error("Gemini failed: " + errs.slice(-3).join(" | "));
 }
 
 const P1_SYSTEM = `You extract technology evidence from job postings. You are a parser, not a writer.
