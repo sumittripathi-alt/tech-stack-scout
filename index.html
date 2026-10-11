@@ -454,7 +454,7 @@ let WS = qsWs === 'demo' || qsWs === 'live' ? qsWs : (() => { try { return local
 const isDemoWs = () => WS === 'demo';
 const live = !!(CFG.url && CFG.key);
 const H = () => ({apikey: CFG.key, Authorization: 'Bearer ' + CFG.key, 'Content-Type': 'application/json'});
-async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1/' + path, {...opts, headers: {...H(), ...(opts.headers || {})}}); if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 160)); return r.status === 204 ? null : r.json(); }
+async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1/' + path, {...opts, headers: {...H(), ...(opts.headers || {})}}); if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 160)); const t = await r.text(); try { return t ? JSON.parse(t) : null; } catch (e) { return t; } }
 
 async function loadLive() {
   const acc = await rest(`v_accounts_ws?select=*&is_demo=eq.${isDemoWs()}&order=name`);
