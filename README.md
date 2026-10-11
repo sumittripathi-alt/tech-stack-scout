@@ -10,22 +10,27 @@ For every company on the Supabase `watchlist`, the system reads **live public da
 
 | # | Component | Where | What it does |
 |---|-----------|-------|--------------|
-| 1 | Watchlist | Supabase table `watchlist` | Companies to research. Insert a row → trigger calls the refresh function within seconds. |
-| 2 | Scheduler | `pg_cron` job `scout-weekly-refresh` | Mondays 03:17 UTC (08:47 IST) calls `refresh_all()` → one `pg_net` request per active account. |
-| 3 | Resolver | `scout-refresh.ts` → `resolve()` | Finds the GitHub org (verified against the company domain), the ATS board (Greenhouse / Ashby / Lever) and the blog RSS feed. |
-| 4 | Collectors | `collectGitHub`, `collectJobs`, `collectBlog` | GitHub: languages, root config files, workflow files, **measured GitHub Actions run times**. Jobs: engineering + platform roles and full descriptions. Blog: latest post titles. |
-| 5 | Extractor (P1) | Gemini Flash, JSON schema, temp 0 | Pulls technologies with verbatim quotes from job posts. Code drops any quote that is not an exact substring of the posting. A deterministic dictionary pass runs alongside. |
-| 6 | Evidence ledger | tables `signals`, `snapshots` | One fact per tech × source with state (active / hiring_only / migrating_to / noise), confidence, URL and quote. Human overrides (`overrides`) are applied every run. |
-| 7 | Scoring + diff | `refresh()` | Evidence tier A/B/C, ICP fit, why-now score, pain hypotheses (primitive + scale threshold → friction), diff vs last snapshot. Unchanged accounts skip generation. |
-| 8 | Writer (P2) | Gemini Flash, JSON schema, temp 0 | Writes the summary and opener **only from the numbered fact sheet**; every sentence cites fact IDs. |
-| 9 | Verifier + repair (P3) | `verify()` in code | Rejects unknown technologies, uncited sentences, unsupported numbers, banned phrases, long openers. One repair round, then a safe template. Tier C accounts get discovery questions instead of an opener. |
-| 10 | Console | `index.html` on Vercel | Dashboard, accounts with cited briefs and evidence ledger, watchlist editor, signal ledger, pipeline health, feedback buttons. |
+| 1 | Watchlist | Supabase table `watchlist` | Companies to research. Insert a row (or use the console, or bulk import) and a trigger/queue calls the refresh function within seconds. |
+| 2 | Scheduler | `pg_cron` | `scout-weekly-refresh` Mon 03:17 UTC, `scout-drain-queue` every minute (3 at a time), `scout-hot-refresh` daily 03:41, `scout-radar` Mon 03:47, `scout-discovery` Mon 02:31, `scout-weekly-digest` Mon 08:03. |
+| 3 | Website reader | `scout-refresh.ts` → `collectWebsite` | Polite crawl (robots.txt, identifying UA) of homepage, careers, engineering, security pages. Source of linked GitHub orgs, job boards and RSS feeds. |
+| 4 | Resolver | `resolve()` | Verifies GitHub org, ATS board and blog feed found by link; name-guessing is a lower-confidence fallback. Overridable in the "Fix sources" panel. |
+| 5 | Collectors | `collectGitHub`, `collectJobs` (9 ATS + JSON-LD), `collectBlog`, `collectFingerprint`, `collectNews`, custom `sources` | GitHub languages, configs, measured CI run times; job posts; blog titles; headers/DNS/CT fingerprint (hedged); Google News triggers. |
+| 6 | Extractor (P1) | Gemini Flash, JSON schema, temp 0 | Tech with verbatim quotes from job posts and careers pages; code drops quotes that are not exact substrings. A dictionary pass runs alongside. |
+| 7 | Evidence ledger | tables `signals`, `snapshots`, `overrides` | One fact per tech × source with state, confidence, URL, quote. Human overrides applied every run. `watchlist.coverage` records which sources worked. |
+| 8 | Scoring + diff | `refresh()` | Evidence tier A/B/C (first-party sources only), ICP fit, why-now, pain hypotheses from `hook_playbooks`, diff vs last snapshot. |
+| 9 | Writer (P2) + Verifier (P3) | Gemini Flash + `verify()` in code | Writes only from the numbered fact sheet; code rejects unknown tech, uncited sentences, unsupported numbers, banned phrases, long openers; one repair, then a template. Tier C gets discovery questions. |
+| 10 | Config | tables `seller_profile`, `tech_dictionary`, `hook_playbooks`, `sources`, `prompt_versions` | Everything the function reads each run; edited in Settings, no code. |
+| 11 | Window Radar | `scout-radar` job, table `radar` | Phase, weeks in decision window, gap, play, closest won account, peer outcome. No AI. |
+| 12 | Ask the ledger | Edge Function `scout-ask` (`scout-ask.ts`) | Gemini answers from stored evidence only; each sentence cites ledger ids and code drops anything that does not verify. |
+| 13 | Outputs | Edge Functions `scout-push` (`scout-push.ts`), `scout-digest` (`scout-digest.ts`); tables `output_targets`, `push_log` | Slack webhook, generic webhook, HubSpot note (untested), Monday digest, alerts on material change. Gmail compose link in the console. |
+| 14 | Lead discovery | Edge Function `scout-discover` (`scout-discover.ts`); tables `discovery_config`, `leads` | Finds and scores new accounts; auto-adds above a threshold up to a weekly cap, queues borderline ones for review, prunes weak auto-adds. |
+| 15 | Console | `index.html` on Vercel | Dashboard, accounts with cited briefs and coverage, watchlist, Window Radar, Discovery, Ask, signal ledger, pipeline health, Settings, feedback. |
 
 ## Files
 
 - `index.html` — the console (static; talks to Supabase REST with the public anon key, which only has the RLS rights above).
-- `scout-refresh.ts` — Supabase Edge Function `scout-refresh` (deploy with `supabase functions deploy scout-refresh`).
-- `supabase-schema.sql` — tables, RLS, view, trigger, cron.
+- `scout-refresh.ts`, `scout-push.ts`, `scout-digest.ts`, `scout-ask.ts`, `scout-discover.ts` — the five Supabase Edge Functions (deploy each with `supabase functions deploy <name>`; JWT verification on).
+- `supabase-schema.sql` — base tables, RLS, view, trigger, cron. `supabase-schema-v2-v7.sql` — outputs, v7 columns, lead discovery tables, RPCs and cron. `config-seed.sql` — default config rows.
 - `vercel.json` — static hosting config.
 
 ## Secrets
