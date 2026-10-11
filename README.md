@@ -35,3 +35,27 @@ Keys never ship to the browser. The function reads `GEMINI_API_KEY` / `GITHUB_TO
 ## Why the copy stays true
 
 Code collects and checks the facts; Gemini only extracts and phrases them. The opener can only name what is in the fact sheet, and a reviewer can click any citation to see the source quote.
+
+## Demo workspace
+
+`demo-seed.sql` loads 20 fictional companies with 8 weeks of history so every feature can be shown without waiting for real data. Open the console with `?workspace=demo` or use the **Live / Demo** toggle in the top bar.
+
+| Feature | Demo company |
+|---|---|
+| Migration hook (Jenkins → GitHub Actions), top why-now | Northwind Pay |
+| Container migration (EC2 → EKS) | Helio Freight |
+| Measured CI pain from Actions run times | Quarry Labs, Atlas Biotech |
+| Platform hiring surge + AE "mark wrong" override | Lattice Health |
+| Monorepo scale threshold | Orbitform |
+| Blog-reference hook, incumbent competitor | Kestrel Security |
+| Tier B (jobs only) hedged copy | Meridian Retail Group |
+| Tier C: no opener, discovery questions instead | Silverline Insurance |
+| Low-confidence GitHub org mapping | Cobalt Ledger |
+| Failed refresh isolated in the run log | Fernway Travel |
+| Verifier fallback to template | Tidewater Analytics |
+| Verifier repair pass | Aurora Robotics |
+| Open-source project hook | Halcyon AI |
+| Removed from watchlist (inactive) | Saffron Telecom |
+| Won / Lost stages, feedback loop | Vantage Mobility, Pebble Payroll |
+
+Demo rows have `watchlist.is_demo = true`; the weekly cron and the Edge Function never touch them.

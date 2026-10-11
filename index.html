@@ -55,6 +55,10 @@ main{min-width:0;display:flex;flex-direction:column;gap:18px}
 .kbd{font:11px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
 .chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(8,6,24,.4);font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap}
 .chip.live{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.10);color:#C9F7D8}
+.ws{display:inline-flex;padding:3px;border-radius:12px;border:1px solid var(--line);background:rgba(8,6,24,.4)}
+.ws button{border:0;background:transparent;color:var(--ink-2);font:600 12.5px 'Plus Jakarta Sans',sans-serif;padding:5px 12px;border-radius:9px;cursor:pointer}
+.ws button[aria-pressed="true"]{background:linear-gradient(135deg,#8B5CF6,#6366F1);color:#fff;box-shadow:0 4px 14px rgba(139,92,246,.35)}
+.ws button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .chip.demo{border-color:rgba(250,204,21,.35);background:rgba(250,204,21,.08);color:#FBE7A1}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(74,222,128,.6);animation:pulse 2s infinite}
 .eq{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
@@ -226,6 +230,7 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
       <button class="iconbtn burger" id="burger" aria-label="Open navigation"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 5h14M3 10h14M3 15h14"/></svg></button>
       <label class="search"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg><input id="q" type="text" placeholder="Search companies, tech, hooks" aria-label="Search"><span class="kbd">⌘ F</span></label>
       <span class="spacer"></span>
+      <span class="ws" id="wsToggle" role="group" aria-label="Workspace" hidden><button type="button" data-ws="live" aria-pressed="true">Live</button><button type="button" data-ws="demo" aria-pressed="false">Demo</button></span>
       <span class="chip"><span class="eq"><i></i><i></i><i></i><i></i><i></i></span><span id="streamLabel">Data streaming</span></span>
       <span class="chip live" id="modeChip"><span class="dot"></span><span id="modeLabel">Live system health</span></span>
       <span class="user"><span class="avatar">NK</span><span class="who"><b>Nikhil</b><span>Enterprise AE</span></span></span>
@@ -340,7 +345,10 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
         <article class="glass card rise"><div class="hd"><h3 id="runChartTitle">Refresh runs</h3></div><svg class="chart" id="runChart" viewBox="0 0 640 260" role="img" aria-label="Refresh run durations"></svg></article>
         <article class="glass card rise"><div class="hd"><h3>What changed</h3><span class="end"><span class="pill hook">alerts only on material change</span></span></div><div class="feed" id="feed"></div></article>
       </div>
-      <article class="glass card rise"><div class="hd"><h3>Run log</h3></div><div class="tw" id="runLog"></div></article>
+      <div class="grid r2">
+        <article class="glass card rise"><div class="hd"><h3>Run log</h3></div><div class="tw" id="runLog"></div></article>
+        <article class="glass card rise"><div class="hd"><h3>AE feedback loop</h3><span class="end"><span class="pill hook">tunes next week's prompt</span></span></div><div id="fbCard"></div></article>
+      </div>
     </section>
 
     <!-- PROMPTS -->
@@ -389,17 +397,21 @@ const short = n => n.length > 11 ? n.split(' ')[0].slice(0, 11) : n;
 
 /* ---------- state ---------- */
 let M = null, view = 'dashboard', selId = null, poll = null;
+const qsWs = new URLSearchParams(location.search).get('workspace');
+let WS = qsWs === 'demo' || qsWs === 'live' ? qsWs : (() => { try { return localStorage.getItem('scout.ws') || 'live'; } catch (e) { return 'live'; } })();
+const isDemoWs = () => WS === 'demo';
 const live = !!(CFG.url && CFG.key);
 const H = () => ({apikey: CFG.key, Authorization: 'Bearer ' + CFG.key, 'Content-Type': 'application/json'});
 async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1/' + path, {...opts, headers: {...H(), ...(opts.headers || {})}}); if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 160)); return r.status === 204 ? null : r.json(); }
 
 async function loadLive() {
-  const [acc, runs, events, fb, snaps] = await Promise.all([
-    rest('v_accounts?select=*&order=name'),
-    rest('pipeline_runs?select=*&order=started_at.desc&limit=300'),
-    rest('events?select=*&order=created_at.desc&limit=60'),
-    rest('feedback?select=action,created_at&order=created_at.desc&limit=500'),
-    rest('snapshots?select=account_id,taken_at,ci_median_min,eng_roles,platform_roles&order=taken_at.asc&limit=2000'),
+  const acc = await rest(`v_accounts_ws?select=*&is_demo=eq.${isDemoWs()}&order=name`);
+  const ids = acc.map(a => a.id); const inIds = ids.length ? `account_id=in.(${ids.join(',')})` : 'account_id=is.null';
+  const [runs, events, fb, snaps] = await Promise.all([
+    rest(`pipeline_runs?select=*&${inIds}&order=started_at.desc&limit=300`),
+    rest(`events?select=*&${inIds}&order=created_at.desc&limit=80`),
+    rest(`feedback?select=action,created_at,account_id&${inIds}&order=created_at.desc&limit=500`),
+    rest(`snapshots?select=account_id,taken_at,ci_median_min,eng_roles,platform_roles&${inIds}&order=taken_at.asc&limit=2000`),
   ]);
   const snapIds = acc.map(a => a.snapshot_id).filter(Boolean);
   const sigs = snapIds.length ? await rest(`signals?select=*&snapshot_id=in.(${snapIds.join(',')})&order=id`) : [];
@@ -411,7 +423,7 @@ async function loadLive() {
       last_refreshed: a.last_refreshed_at, github_org: a.github_org, ats: a.ats_provider ? `${a.ats_provider}:${a.ats_slug}` : null, blog: a.blog_feed,
       mapping_confidence: +a.mapping_confidence || 0, tier: a.evidence_tier || 'C', icp: +a.icp_fit || 0, why_now: +a.why_now || 0,
       languages: a.languages || {}, ci: a.ci_median_min != null ? +a.ci_median_min : null, ci_repo: a.ci_repo, eng_roles: a.eng_roles, platform_roles: a.platform_roles,
-      active30: a.active_repos_30d, public_repos: a.public_repos, posts: a.blog_posts || [], hyps: a.hypotheses || [], diff: a.diff || [], competitor: null,
+      active30: a.active_repos_30d, public_repos: a.public_repos, posts: a.blog_posts || [], hyps: a.hypotheses || [], diff: a.diff || [], competitor: a.competitor || null, demo: !!a.is_demo,
       brief: a.brief_id ? {id: a.brief_id, summary: a.summary, opener: a.opener, cites: a.opener_cites || [], hook: a.hook_type, discovery: a.discovery || [], verifier_passed: a.verifier_passed, repaired: a.repaired, fallback: a.used_fallback, model: a.model} : null,
       signals: sigs.filter(s => s.snapshot_id === a.snapshot_id).map(s => ({fid: s.fid, tech: s.tech, category: s.category, state: s.state, confidence: +s.confidence, source: s.source, strength: s.strength, url: s.source_url, quote: s.quote})),
       history: {dates: hist.map(h => h.taken_at), ci: hist.map(h => h.ci_median_min != null ? +h.ci_median_min : null), eng: hist.map(h => h.eng_roles), plat: hist.map(h => h.platform_roles)},
@@ -428,8 +440,12 @@ async function load() {
   } else M = DEMO;
   const isLive = M.mode === 'live';
   $('#modeChip').className = 'chip ' + (isLive ? 'live' : 'demo');
-  $('#modeLabel').textContent = isLive ? 'Live system health' : 'Sample data · fictional';
+  const demoWs = isLive && isDemoWs();
+  $('#modeChip').className = 'chip ' + (isLive && !demoWs ? 'live' : 'demo');
+  $('#modeLabel').textContent = demoWs ? 'Demo workspace · fictional companies' : isLive ? 'Live system health' : 'Sample data · fictional';
   $('#streamLabel').textContent = isLive ? 'Supabase streaming' : 'Data streaming';
+  $$('#wsToggle [data-ws]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.ws === WS)));
+  $('#wsToggle').hidden = !live;
   render();
   const busy = isLive && M.accounts.some(a => a.status === 'queued' || a.status === 'running');
   clearTimeout(poll); if (busy) poll = setTimeout(load, 8000);
@@ -639,14 +655,14 @@ function renderDetail(a) {
   const d = $('#detail'); if (!a) { d.innerHTML = ''; return; }
   const b = a.brief || {}; const isLive = M.mode === 'live';
   const langs = Object.entries(a.languages || {}).map(([k, v], i) => `<span class="pill" style="border-color:${PAL[i]}55"><i style="width:7px;height:7px;border-radius:50%;background:${PAL[i]};display:inline-block"></i>${esc(k)} ${v}%</span>`).join(' ');
-  const flags = [a.mapping_confidence < .8 && a.github_org ? `<span class="pill bad">verify GitHub org (${a.mapping_confidence.toFixed(2)})</span>` : '', a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">last refresh failed</span>` : '', b.fallback ? '<span class="pill warn">template fallback</span>' : '', b.repaired ? '<span class="pill warn">repaired once</span>' : '', b.verifier_passed ? '<span class="pill ok">verifier passed</span>' : ''].join(' ');
+  const flags = [a.mapping_confidence < .8 && a.github_org ? `<span class="pill bad">verify GitHub org (${a.mapping_confidence.toFixed(2)})</span>` : '', a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">last refresh failed</span>` : '', b.fallback ? '<span class="pill warn">template fallback</span>' : '', b.repaired ? '<span class="pill warn">repaired once</span>' : '', b.verifier_passed ? '<span class="pill ok">verifier passed</span>' : '', a.competitor ? `<span class="pill warn">incumbent: ${esc(a.competitor)}</span>` : '', a.stage ? `<span class="pill">${esc(a.stage)}</span>` : ''].join(' ');
   const summary = b.summary ? b.summary.map(p => `<p>${p.map(s => esc(s.text) + citeHTML(s.cites)).join(' ')}</p>`).join('') : '';
   const facts = a.signals.length ? a.signals.map(s => `<div class="fact" id="fact-${esc(s.fid)}"><span class="fid">${esc(s.fid)}</span><span><b style="color:#EEEDFF">${esc(s.tech)}</b> <span class="sub" style="display:inline">${esc(s.category)} · ${esc(s.source.replace('_', ' '))}${s.strength && s.strength !== 'narrative' ? ' · ' + esc(s.strength) : ''}</span></span><span class="pill ${s.state === 'noise' ? '' : s.state.includes('migrating') || s.state === 'hiring_only' ? 'warn' : 'ok'}">${esc(s.state.replace('_', ' '))} · ${(+s.confidence).toFixed(2)}</span><span class="q">“${esc(s.quote)}” ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a>` : ''} ${isLive && s.state !== 'noise' && !['hiring', 'github activity', 'blog post'].includes(s.tech) ? `<button class="btn" style="padding:2px 8px;font-size:11px" data-wrong="${esc(s.tech)}">Mark wrong</button>` : ''}</span></div>`).join('') : '<div class="empty">No facts yet. The first refresh fills this in.</div>';
   const h = a.history || {dates: []};
   d.innerHTML = `
   <article class="glass card rise">
     <div class="hd"><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]};width:40px;height:40px;font-size:14px">${initials(a.name)}</span><div><h3 style="font-size:18px">${esc(a.name)}</h3><p class="sub">${esc(a.domain)} · ${a.github_org ? 'github.com/' + esc(a.github_org) : 'no GitHub org'} · ${a.ats ? esc(a.ats) : 'no job board'} · refreshed ${ago(a.last_refreshed)}</p></div>
-      <span class="end"><span class="pill ${a.tier}">Tier ${a.tier}</span>${isLive ? `<button class="btn" id="refreshBtn">Refresh now</button>` : ''}</span></div>
+      <span class="end"><span class="pill ${a.tier}">Tier ${a.tier}</span>${isLive && !a.demo ? `<button class="btn" id="refreshBtn">Refresh now</button>` : ''}</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${flags}</div>
     <div class="toolbar"><span class="sub">Opening line for</span><select id="persona" aria-label="Persona">${['VP Engineering', 'Platform Lead', 'DevOps Manager', 'Staff Engineer'].map(p => `<option ${p === a.persona ? 'selected' : ''}>${p}</option>`).join('')}</select>${b.hook ? `<span class="pill hook">${esc(b.hook.replace('_', ' '))}</span>` : ''}</div>
     ${b.opener ? `<div class="opener" id="openerBox"><span id="openerText">${esc(b.opener)}</span>${citeHTML(b.cites)}</div>
@@ -684,6 +700,7 @@ async function sendFeedback(a, action, edited = null, silent = false) {
 }
 async function refreshAccount(a) {
   if (M.mode !== 'live') { toast('Refresh runs on the live deployment'); return; }
+  if (a.demo) { toast('Demo companies are fictional, so there is nothing public to re-collect. Switch to Live to refresh a real account.'); return; }
   a.status = 'running'; render();
   try {
     const r = await fetch(CFG.url + '/functions/v1/scout-refresh', {method: 'POST', headers: {...H()}, body: JSON.stringify({account_id: a.id, trigger: 'manual'})});
@@ -709,6 +726,7 @@ $('#addForm').addEventListener('submit', async e => {
   e.preventDefault();
   const name = $('#fName').value.trim(), domain = $('#fDomain').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
   if (!name || !domain.includes('.')) { toast('Enter a company name and a domain like posthog.com'); return; }
+  if (M.mode === 'live' && isDemoWs()) { toast('The demo workspace is read-only for new companies. Switch to Live to add a real one.'); return; }
   if (M.mode !== 'live') { M.accounts.push({id: 'tmp' + Date.now(), name, domain, persona: $('#fPersona').value, stage: $('#fStage').value, active: true, status: 'queued', tier: 'C', icp: 0, why_now: 0, languages: {}, signals: [], brief: null, history: {dates: []}, diff: []}); render(); toast(`${name} added (sample mode: not researched)`); e.target.reset(); return; }
   $('#addBtn').disabled = true;
   try { await rest('watchlist', {method: 'POST', body: JSON.stringify({name, domain, persona: $('#fPersona').value, stage: $('#fStage').value}), headers: {Prefer: 'return=minimal'}}); toast(`${name} added. Research starts now; it takes about a minute.`); e.target.reset(); load(); }
@@ -765,6 +783,9 @@ function renderPipeline() {
     W.forEach((w, i) => { const x = 30 + i * 50, h1 = w.accounts / mx * 190, h2 = w.material / mx * 190; el('rect', {x: x + 8, y: 225 - h1, width: 30, height: h1, rx: 6, fill: '#3B82F6', 'fill-opacity': .35, class: 'grow', style: `animation-delay:${i * .04}s`}, svg); const b = el('rect', {x: x + 8, y: 225 - h2, width: 30, height: h2, rx: 6, fill: '#8B5CF6', class: 'grow', style: `animation-delay:${.2 + i * .04}s`}, svg); el('title', {}, b, `${fmtDate(w.week)}: ${w.material} of ${w.accounts} changed`); el('text', {x: x + 23, y: 244, 'text-anchor': 'middle', 'font-size': 10.5, fill: '#8580B0'}, svg, fmtDate(w.week)); });
     $('#runLog').innerHTML = `<table><thead><tr><th>Week</th><th class="num">Accounts</th><th class="num">Changed</th><th class="num">Failed</th><th class="num">Verifier</th><th class="num">Cost</th></tr></thead><tbody>${[...W].reverse().map(w => `<tr><td>${fmtDate(w.week)}</td><td class="num">${w.accounts}</td><td class="num">${w.material}</td><td class="num">${w.failed}</td><td class="num">${pct(w.verifier_fail)}</td><td class="num">$${w.cost.toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
   }
+  const F = M.feedback || [], fbBox = $('#fbCard');
+  if (fbBox) { const kinds = [['used_as_is', 'Used as is', '#4ADE80'], ['edited_tone', 'Edited tone', '#FACC15'], ['edited_fact', 'Fact marked wrong', '#FB923C'], ['rejected', 'Rejected', '#F87171']]; const tot = F.length || 1;
+    fbBox.innerHTML = F.length ? `<div class="big">${Math.round(F.filter(f => f.action === 'used_as_is').length / tot * 100)}%</div><p class="sub">of ${plural(F.length, 'AE action')} kept the opener unchanged</p>${kinds.map(([k, l, c]) => { const v = F.filter(f => f.action === k).length; return `<div style="display:grid;grid-template-columns:120px 1fr 28px;gap:8px;align-items:center;margin-top:8px;font-size:12.5px"><span class="sub" style="margin:0">${l}</span><span style="height:8px;border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden"><i style="display:block;height:100%;width:${v / tot * 100}%;background:${c}"></i></span><b style="color:#EEEDFF;text-align:right">${v}</b></div>`; }).join('')}` : '<div class="empty">No AE feedback yet. Use, edit or reject an opener to start the loop.</div>'; }
   const ev = (M.events || []).filter(e => e.detail !== 'First snapshot');
   $('#feed').innerHTML = ev.length ? ev.slice(0, 14).map(e => `<div class="ev"><i></i><span><b style="color:#EEEDFF">${esc(e.account)}</b> · ${esc(e.detail)}</span><span class="sub">${fmtDate(e.at)}</span></div>`).join('') : '<div class="empty">No material changes yet. Changes appear here from the second weekly snapshot on.</div>';
 }
@@ -792,6 +813,7 @@ function render() { if (!M) return; if (view === 'dashboard') renderDashboard();
 $$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
 $('#burger').onclick = () => $('#side').classList.toggle('open');
+$$('#wsToggle [data-ws]').forEach(b => b.onclick = () => { if (b.dataset.ws === WS) return; WS = b.dataset.ws; try { localStorage.setItem('scout.ws', WS); } catch (e) {} try { const u = new URL(location.href); u.searchParams.set('workspace', WS); history.replaceState(null, '', u); } catch (e) {} selId = null; toast(WS === 'demo' ? 'Demo workspace: 20 fictional companies, 8 weeks of history' : 'Live workspace: real companies, refreshed weekly'); load(); });
 $('#q').addEventListener('input', () => { if (view !== 'accounts') go('accounts'); else renderAccounts(); });
 ['#fTier', '#fSort'].forEach(s => $(s).addEventListener('change', renderAccounts));
 document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#q').focus(); } });
