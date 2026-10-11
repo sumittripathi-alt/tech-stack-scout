@@ -88,3 +88,6 @@ Scout no longer depends on a company having a public GitHub org. For every accou
 6. **Shows coverage**: each account lists which sources worked, hints for the ones that did not, and a "Fix sources" panel (GitHub org, job board, careers URL, blog feed) that saves and refreshes.
 
 Evidence tiers count only first-party sources (GitHub, job boards, website, blog). Fingerprints and news never lift an account to Tier A or B on their own, and an account with thin evidence gets discovery questions instead of an invented opener.
+
+## Lead discovery (auto-add)
+`scout-discover` (weekly cron, or "Run discovery now" on the Discovery page) finds new target accounts from: lookalikes of won/opportunity accounts' tech, hiring signals (HN "Who is hiring"), open-source orgs (GitHub topics), news headlines, and competitor mentions. Each candidate is scored for fit (0-1). Score >= auto threshold (default 0.65) is auto-added to the watchlist up to a weekly cap (default 5); >= review threshold (0.5) goes to a review queue (Add / Dismiss); lower is rejected. Auto-added leads that refresh to Tier C with low ICP fit are paused, never deleted. All thresholds, sources, extra terms and excluded domains are editable in the UI (tables `discovery_config`, `leads`).

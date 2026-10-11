@@ -222,6 +222,7 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
     <button class="nav" data-view="accounts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="3"/><path d="M2 17c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="14.5" cy="6.5" r="2.3"/><path d="M13 12.2c2.7-.4 5 1.4 5 4.8"/></svg>Accounts</button>
     <button class="nav" data-view="watchlist"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h12v15l-6-3.5L4 18z"/></svg>Watchlist<span class="count" id="navCount">0</span></button>
     <button class="nav" data-view="radar"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="8"/><circle cx="10" cy="10" r="4.5"/><path d="M10 10l5-5"/></svg>Window radar<span class="tag">NEW</span></button>
+    <button class="nav" data-view="discover"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="9" cy="9" r="5.5"/><path d="M13 13l4 4M9 6.5v5M6.5 9h5"/></svg>Discovery<span class="tag">NEW</span></button>
     <button class="nav" data-view="ask"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h14v9H8l-4 3.5V13H3z"/></svg>Ask the ledger<span class="tag">GEMINI</span></button>
     <div class="sec">Tools</div>
     <button class="nav" data-view="signals"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 10h3l2-6 3 12 2-8 2 4h4"/></svg>Signal ledger</button>
@@ -363,6 +364,13 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
     </section>
 
     <!-- ASK -->
+    <section data-v="discover" class="view grid" hidden>
+      <div class="ph"><h1>Lead discovery</h1><span class="sub" id="disSub"></span></div>
+      <div class="grid k3" id="disKpis"></div>
+      <article class="glass card rise"><div class="hd"><h3>Review queue</h3><span class="end sub">Borderline matches wait here. Approve to add to the watchlist.</span></div><div id="disQueue"></div></article>
+      <article class="glass card rise"><div class="hd"><h3>Added and paused automatically</h3><span class="end sub">Auto-added accounts are re-checked after a full read and paused if the evidence is weak.</span></div><div id="disAuto"></div></article>
+      <article class="glass card rise"><div class="hd"><h3>Rules</h3><span class="end"><button class="btn" id="disRun">Run discovery now</button></span></div><div id="disCfg"></div></article>
+    </section>
     <section data-v="ask" class="view grid" hidden>
       <div class="ph"><h1>Ask the ledger</h1><span class="sub">Answers use only stored evidence. Every sentence carries source ids; anything that does not check out is dropped.</span></div>
       <article class="glass card rise">
@@ -903,7 +911,7 @@ function renderAbout() {
 
 /* ---------- routing ---------- */
 function go(v) { view = v; $$('.nav').forEach(n => { if (n.dataset.view === v) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); }); $$('.view').forEach(s => s.hidden = s.dataset.v !== v); $('#side').classList.remove('open'); render(); try { history.replaceState(null, '', '#' + v); } catch (e) {} window.scrollTo({top: 0}); }
-function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
+function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
 $$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
 $('#burger').onclick = () => $('#side').classList.toggle('open');
@@ -1007,6 +1015,42 @@ function wireExtras(a, d) {
   $('#hotBtn') && ($('#hotBtn').onclick = () => patchAcc(a.id, {hot: !a.hot}, 'hot'));
 }
 
+
+
+/* ---------- lead discovery ---------- */
+const DIS_SRC = {lookalike: 'Lookalikes of won accounts', hiring: 'Hiring signals', oss: 'Open-source activity', competitor: 'Competitor mentions'};
+async function renderDiscover() {
+  if (M.mode !== 'live' || isDemoWs()) { $('#disSub').textContent = 'Needs the live deployment'; $('#disKpis').innerHTML = ''; $('#disQueue').innerHTML = '<p class="sub">Discovery runs against the live workspace. Switch to Live.</p>'; $('#disAuto').innerHTML = ''; $('#disCfg').innerHTML = ''; return; }
+  let cfg, leads;
+  try { [cfg, leads] = await Promise.all([rest('discovery_config?id=eq.default&select=*'), rest('leads?select=*&status=in.(review,auto_added,pruned)&order=fit_score.desc&limit=200')]); } catch (e) { $('#disQueue').innerHTML = `<p class="sub">Could not load: ${esc(e.message)}</p>`; return; }
+  cfg = cfg[0]; const sum = cfg.last_summary || {};
+  const review = leads.filter(l => l.status === 'review'), auto = leads.filter(l => l.status !== 'review');
+  $('#disSub').textContent = cfg.last_run_at ? `Last run ${new Date(cfg.last_run_at).toLocaleString()} · weekly on Mondays` : 'Has not run yet · weekly on Mondays';
+  $('#disKpis').innerHTML = [['In review', review.length, 'waiting for your call'], ['Auto-added', auto.filter(l => l.status === 'auto_added').length, `cap ${cfg.weekly_cap} per week`], ['Last run found', sum.found ?? 0, sum.profile ? `matched against ${sum.profile}` : 'no run yet']].map(([t, v, d]) => `<article class="glass card rise"><div class="hd"><h3>${t}</h3></div><div style="font-size:30px;font-weight:700">${v}</div><p class="sub">${esc(d)}</p></article>`).join('');
+  const srcPill = l => `<span class="pill hook">${esc(l.source)}</span>`;
+  $('#disQueue').innerHTML = review.length ? `<div class="tw"><table><thead><tr><th>Company</th><th>Source</th><th>Fit</th><th>Why it matched</th><th></th></tr></thead><tbody>${review.slice(0, 40).map(l => `<tr><td><b>${esc(l.name)}</b><div class="sub"><a href="https://${esc(l.domain)}" target="_blank" rel="noopener">${esc(l.domain)}</a></div></td><td>${srcPill(l)}</td><td>${(+l.fit_score).toFixed(2)}</td><td class="sub" style="white-space:normal;max-width:380px">${esc(l.reason || '')}${(l.evidence?.urls || [])[0] ? ` <a href="${esc(l.evidence.urls[0])}" target="_blank" rel="noopener">evidence</a>` : ''}</td><td style="white-space:nowrap"><button class="btn ok" data-ap="${l.id}">Add</button> <button class="btn" data-dis="${l.id}">Dismiss</button></td></tr>`).join('')}</tbody></table></div>${review.length > 40 ? `<p class="sub">Showing the 40 best of ${review.length}.</p>` : ''}` : '<p class="sub">Nothing waiting. Run discovery to look for new accounts.</p>';
+  $('#disAuto').innerHTML = auto.length ? auto.slice(0, 30).map(l => `<div class="fact"><span class="fid">${(+l.fit_score).toFixed(2)}</span><span><b>${esc(l.name)}</b> <span class="sub" style="display:inline">${esc(l.domain)} · ${esc(l.source)} · ${l.status === 'pruned' ? 'paused: weak evidence after a full read' : 'on the watchlist'}</span><br><span class="sub">${esc(l.reason || '')}</span></span></div>`).join('') : '<p class="sub">No automatic additions yet.</p>';
+  const src = cfg.sources || {};
+  $('#disCfg').innerHTML = `<div class="cfg" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">
+    <label class="sub"><input type="checkbox" id="dcOn" ${cfg.enabled ? 'checked' : ''}> Run automatically every Monday</label>
+    <label class="sub">Auto-add at fit of<input id="dcAuto" type="number" step="0.05" min="0" max="1" value="${cfg.auto_threshold}"></label>
+    <label class="sub">Send to review at fit of<input id="dcRev" type="number" step="0.05" min="0" max="1" value="${cfg.review_threshold}"></label>
+    <label class="sub">Max auto-adds per week<input id="dcCap" type="number" step="1" min="0" max="50" value="${cfg.weekly_cap}"></label>
+    ${Object.keys(DIS_SRC).map(k => `<label class="sub"><input type="checkbox" data-dsrc="${k}" ${src[k] !== false ? 'checked' : ''}> ${DIS_SRC[k]}</label>`).join('')}
+    <label class="sub" style="grid-column:1/-1">Extra technologies to look for, one per line<textarea id="dcTerms" rows="2">${esc((cfg.extra_terms || []).join('\n'))}</textarea></label>
+    <label class="sub" style="grid-column:1/-1">Never suggest these domains, one per line<textarea id="dcEx" rows="2">${esc((cfg.exclude_domains || []).join('\n'))}</textarea></label>
+  </div><div class="toolbar"><button class="btn ok" id="dcSave">Save rules</button><span class="sub">Fit is judged against your won accounts, or a default CI-heavy profile until you have some. Set the weekly cap to 0 to review everything by hand.</span></div>`;
+  $$('[data-ap]').forEach(b => b.onclick = async () => { b.disabled = true; try { await rest('rpc/approve_lead', {method: 'POST', body: JSON.stringify({p_id: b.dataset.ap})}); toast('Added to the watchlist and queued for a full read'); await loadLive(); render(); } catch (e) { toast('Could not add: ' + e.message); b.disabled = false; } });
+  $$('[data-dis]').forEach(b => b.onclick = async () => { try { await rest('rpc/dismiss_lead', {method: 'POST', body: JSON.stringify({p_id: b.dataset.dis})}); renderDiscover(); } catch (e) { toast('Could not dismiss: ' + e.message); } });
+  $('#dcSave').onclick = async () => {
+    const lines = v => v.split('\n').map(x => x.trim().toLowerCase()).filter(Boolean);
+    const sources = {}; $$('[data-dsrc]').forEach(c => sources[c.dataset.dsrc] = c.checked);
+    const p = {enabled: $('#dcOn').checked, auto_threshold: +$('#dcAuto').value, review_threshold: +$('#dcRev').value, weekly_cap: +$('#dcCap').value, sources, extra_terms: lines($('#dcTerms').value), exclude_domains: lines($('#dcEx').value)};
+    if (p.review_threshold > p.auto_threshold) { toast('The review level has to be at or below the auto-add level'); return; }
+    try { await rest('rpc/save_discovery_config', {method: 'POST', body: JSON.stringify({p})}); toast('Rules saved'); } catch (e) { toast('Could not save: ' + e.message); }
+  };
+  $('#disRun').onclick = async () => { try { await rest('rpc/run_discovery', {method: 'POST', body: '{}'}); toast('Discovery started. Results appear here in about a minute.'); setTimeout(() => { if (view === 'discover') renderDiscover(); }, 70000); } catch (e) { toast('Could not start: ' + e.message); } };
+}
 
 /* ---------- ask the ledger ---------- */
 const askLog = [];
