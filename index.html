@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Tech Stack Scout: weekly engineering-context briefs and outreach openers for an AE watchlist.">
+<title>Tech Stack Scout</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: glass sidebar + top bar + view canvas over a starfield; dashboard grid = 3 KPI cards / flow + ranking / donut + connections.
+   Deliberately single-theme (deep violet night, as in the reference). */
+:root{
+  color-scheme:dark;
+  --night:#0B0A1C; --night-2:#120F2B; --glass:rgba(28,24,60,.62); --glass-2:rgba(38,33,78,.55);
+  --line:rgba(167,155,255,.13); --line-2:rgba(167,155,255,.22);
+  --ink:#EEEDFF; --ink-2:#B9B5E0; --muted:#8580B0;
+  --violet:#8B5CF6; --indigo:#6366F1; --blue:#3B82F6; --cyan:#22D3EE; --teal:#2DD4BF; --green:#4ADE80; --lime:#A3E635; --yellow:#FACC15; --orange:#FB923C; --coral:#F87171; --pink:#F472B6;
+  --good:#4ADE80; --warn:#FACC15; --bad:#F87171;
+  --f:"Plus Jakarta Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:16px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:radial-gradient(1200px 700px at 78% -10%,rgba(139,92,246,.28),transparent 60%),radial-gradient(900px 600px at -10% 110%,rgba(34,211,238,.13),transparent 60%),linear-gradient(160deg,var(--night) 0%,var(--night-2) 100%);background-color:var(--night);color:var(--ink);font-family:var(--f);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+#stars{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.app{position:relative;z-index:1;display:grid;grid-template-columns:248px minmax(0,1fr);gap:18px;padding-inline:18px;padding-block:18px;min-height:100%}
+@media (max-width:980px){.app{grid-template-columns:1fr}.side{display:none}.side.open{display:flex;position:fixed;inset:12px auto 12px 12px;z-index:30;width:260px}}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:var(--r);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 10px 40px rgba(5,3,20,.45),inset 0 1px 0 rgba(255,255,255,.04)}
+/* sidebar */
+.side{display:flex;flex-direction:column;gap:6px;padding:18px 14px;position:sticky;top:calc(18px + env(safe-area-inset-top,0px));height:calc(100vh - 36px);overflow:auto}
+.logo{display:flex;align-items:center;gap:10px;padding:2px 6px 14px}
+.logo b{display:block;font-size:17px;font-weight:700;letter-spacing:-.01em}
+.logo span{display:block;font-size:12px;color:var(--muted);margin-top:-2px}
+.sec{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:12px 10px 4px}
+.nav{display:flex;align-items:center;gap:10px;width:100%;padding:9px 10px;border-radius:10px;border:0;background:none;color:var(--ink-2);font:500 13.5px var(--f);cursor:pointer;text-align:left;transition:background .2s,color .2s}
+.nav:hover{background:rgba(255,255,255,.04);color:var(--ink)}
+.nav[aria-current="page"]{background:linear-gradient(90deg,rgba(139,92,246,.22),rgba(99,102,241,.10));color:#fff;box-shadow:inset 0 0 0 1px rgba(167,155,255,.18)}
+.nav svg{width:17px;height:17px;flex:none;opacity:.9}
+.nav .tag{margin-left:auto;font-size:10px;font-weight:700;padding:1px 7px;border-radius:6px;background:rgba(99,102,241,.25);color:#C7C9FF}
+.nav .count{margin-left:auto;min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;font-size:11px;font-weight:700;background:var(--yellow);color:#231a00}
+.side .promo{margin-top:auto;padding:14px;border-radius:14px;background:linear-gradient(160deg,rgba(99,102,241,.22),rgba(139,92,246,.10));border:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.side .promo p{margin:0;font-size:12.5px;color:var(--ink-2)}
+.side small{display:block;text-align:center;color:var(--muted);font-size:11px;padding-top:8px}
+/* top bar */
+main{min-width:0;display:flex;flex-direction:column;gap:18px}
+.top{display:flex;align-items:center;gap:12px;padding:10px 12px;flex-wrap:wrap}
+.iconbtn.burger{display:none}
+@media (max-width:980px){.iconbtn.burger{display:inline-grid}}
+.search{flex:1 1 220px;max-width:380px;display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;background:rgba(8,6,24,.45);border:1px solid var(--line);color:var(--muted)}
+.search input{flex:1;min-width:0;background:none;border:0;outline:0;color:var(--ink);font:13.5px var(--f)}
+.kbd{font:11px var(--mono);color:var(--muted);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border-radius:12px;border:1px solid var(--line);background:rgba(8,6,24,.4);font-size:12.5px;font-weight:500;color:var(--ink-2);white-space:nowrap}
+.chip.live{border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.10);color:#C9F7D8}
+.chip.demo{border-color:rgba(250,204,21,.35);background:rgba(250,204,21,.08);color:#FBE7A1}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 0 rgba(74,222,128,.6);animation:pulse 2s infinite}
+.eq{display:inline-flex;gap:2px;align-items:flex-end;height:12px}
+.eq i{width:2px;background:var(--teal);border-radius:1px;animation:eq 1s ease-in-out infinite}
+.eq i:nth-child(2){animation-delay:.15s}.eq i:nth-child(3){animation-delay:.3s}.eq i:nth-child(4){animation-delay:.45s}.eq i:nth-child(5){animation-delay:.6s}
+.top .spacer{flex:1}
+.iconbtn{display:inline-grid;place-items:center;width:36px;height:36px;border-radius:11px;border:1px solid var(--line);background:rgba(8,6,24,.35);color:var(--ink-2);cursor:pointer}
+.iconbtn svg{width:17px;height:17px}
+.user{display:flex;align-items:center;gap:10px;padding-left:6px}
+.avatar{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,var(--violet),var(--cyan));box-shadow:0 0 0 2px rgba(255,255,255,.12);text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.user b{display:block;font-size:13px}.user .who span{display:block;font-size:11.5px;color:var(--muted);margin-top:-2px}
+/* page header */
+.ph{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.ph h1{margin:0;font-size:26px;font-weight:700;letter-spacing:-.02em;margin-right:auto}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:11px;border:1px solid var(--line);background:rgba(8,6,24,.4);color:var(--ink-2);font:500 12.5px var(--f);cursor:pointer;white-space:nowrap;transition:border-color .2s,background .2s,color .2s}
+.btn:hover{border-color:var(--line-2);color:var(--ink)}
+.btn.primary{background:linear-gradient(135deg,var(--indigo),var(--violet));border-color:transparent;color:#fff;box-shadow:0 6px 20px rgba(99,102,241,.35)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ok{border-color:rgba(74,222,128,.35);color:#C9F7D8}.btn.bad{border-color:rgba(248,113,113,.35);color:#FFC9C9}
+.btn svg{width:15px;height:15px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+/* grid & cards */
+.grid{display:grid;gap:18px}
+.k3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.r2{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)}
+.r2b{grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr)}
+@media (max-width:1180px){.k3{grid-template-columns:1fr}.r2,.r2b{grid-template-columns:1fr}}
+.card{padding:18px;min-width:0;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden}
+.card .hd{display:flex;align-items:center;gap:10px}
+.card .hd h3{margin:0;font-size:15px;font-weight:600;letter-spacing:-.005em}
+.card .hd .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--ink-2)}
+.card .hd .ic svg{width:15px;height:15px}
+.card .hd .end{margin-left:auto;display:flex;gap:6px;align-items:center}
+.info{width:16px;height:16px;border-radius:50%;border:1.4px solid var(--muted);display:inline-grid;place-items:center;font-size:10px;font-weight:700;color:var(--muted)}
+.big{font-size:34px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1}
+.sub{color:var(--muted);font-size:12.5px;margin:0}
+.delta{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.delta b{font-weight:600;padding:1px 7px;border-radius:6px;font-size:11.5px}
+.delta b.up{background:rgba(74,222,128,.14);color:var(--good)}.delta b.dn{background:rgba(248,113,113,.14);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px 14px;align-items:end}
+.kpi svg.spark{width:100%;height:46px;overflow:visible}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink-2);white-space:nowrap}
+.pill.A{color:var(--good);border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.08)}
+.pill.B{color:var(--yellow);border-color:rgba(250,204,21,.3);background:rgba(250,204,21,.07)}
+.pill.C{color:var(--coral);border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.07)}
+.pill.hook{color:#D9CCFF;border-color:rgba(139,92,246,.35);background:rgba(139,92,246,.14)}
+.pill.warn{color:var(--yellow)}.pill.bad{color:var(--coral)}.pill.ok{color:var(--good)}
+svg text{font-family:var(--f)}
+.chart{width:100%;height:auto;display:block;overflow:visible}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--ink-2);justify-content:center}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:0}
+/* hero */
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,420px);align-items:center;gap:8px;padding:6px 6px 6px 24px;min-height:220px}
+.hero h2{margin:0 0 6px;font-size:22px;font-weight:700;letter-spacing:-.015em;text-wrap:balance;max-width:28ch}
+.hero p{margin:0 0 14px;color:var(--ink-2);max-width:56ch}
+.hero .row{display:flex;gap:8px;flex-wrap:wrap}
+.hero svg{width:100%;height:auto;max-height:260px}
+@media (max-width:760px){.hero{grid-template-columns:1fr;padding:18px}}
+/* tables */
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{font-size:11.5px;font-weight:600;color:var(--muted);text-align:left;padding:10px 12px;background:rgba(255,255,255,.03);border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child{border-radius:10px 0 0 10px}th:last-child{border-radius:0 10px 10px 0}
+td{padding:11px 12px;border-bottom:1px solid var(--line);white-space:nowrap;color:var(--ink-2)}
+td.num,th.num{text-align:right}
+tbody tr.click{cursor:pointer;transition:background .15s}
+tbody tr.click:hover,tbody tr.sel{background:rgba(139,92,246,.10)}
+.app-ic{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;font-weight:800;font-size:12px;color:#fff;margin-right:10px;vertical-align:middle}
+.hdots{display:inline-flex;gap:5px}
+.hdots i{width:15px;height:15px;border-radius:50%;display:inline-grid;place-items:center;font-size:9px;font-style:normal;font-weight:800;color:#0B0A1C}
+.track{display:inline-block;width:110px;height:5px;border-radius:3px;background:rgba(255,255,255,.08);position:relative;vertical-align:middle}
+.track i{position:absolute;inset:0 auto 0 0;border-radius:3px;background:linear-gradient(90deg,var(--teal),var(--cyan));width:0;transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.toggle{display:inline-block;width:40px;height:22px;border-radius:11px;background:rgba(255,255,255,.12);position:relative;vertical-align:middle;transition:background .3s}
+.toggle::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .3s}
+.toggle.on{background:linear-gradient(90deg,var(--teal),var(--green))}.toggle.on::after{transform:translateX(18px)}
+/* accounts */
+.acct{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px}
+@media (max-width:1180px){.acct{grid-template-columns:1fr}}
+.opener{font-size:16px;line-height:1.55;padding:16px 18px;border-radius:14px;background:linear-gradient(135deg,rgba(99,102,241,.20),rgba(139,92,246,.10));border:1px solid rgba(139,92,246,.35);position:relative}
+.opener textarea{width:100%;min-height:90px;background:rgba(8,6,24,.5);border:1px solid var(--line-2);border-radius:10px;color:var(--ink);font:15px var(--f);padding:10px}
+.cite{font:600 10.5px var(--mono);color:#C7C9FF;background:rgba(99,102,241,.22);border-radius:5px;padding:0 5px;margin-left:3px;cursor:help;vertical-align:1px}
+.summary p{margin:0 0 10px;color:var(--ink-2);max-width:72ch}
+.facts{display:flex;flex-direction:column}
+.fact{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:2px 12px;padding:10px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.fact .fid{font:600 11.5px var(--mono);color:#C7C9FF}
+.fact .q{grid-column:2/4;color:var(--muted);font-size:12.5px;overflow-wrap:anywhere}
+.fact a{color:var(--cyan);text-decoration:none}
+.fact.flash{animation:flash 1.4s ease}
+.mini{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.mini .m{padding:12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.mini .m span{display:block;font-size:11.5px;color:var(--muted)}
+.mini .m b{display:block;font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.empty{padding:16px;border:1px dashed var(--line-2);border-radius:12px;color:var(--ink-2)}
+.empty ol{margin:8px 0 0;padding-left:18px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px solid var(--line);border-radius:10px;color:var(--ink);font:13px var(--f);padding:8px 10px}
+.form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;align-items:end}
+.form label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--muted)}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px}
+.spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.2);border-top-color:var(--cyan);animation:spin .9s linear infinite}
+.feed{display:flex;flex-direction:column;gap:2px}
+.feed .ev{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
+.feed .ev i{width:8px;height:8px;border-radius:50%;background:var(--violet);transform:translateY(-1px)}
+.toast{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:50;padding:12px 16px;border-radius:12px;background:#1C1840;border:1px solid var(--line-2);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px;transform:translateY(20px);opacity:0;transition:all .3s;max-width:calc(100% - 36px)}
+.toast.show{transform:none;opacity:1}
+/* motion */
+.rise{animation:rise .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes rise{from{opacity:.001;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}70%{box-shadow:0 0 0 8px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+@keyframes eq{0%,100%{height:3px}50%{height:12px}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes flash{0%{background:rgba(34,211,238,.18)}100%{background:transparent}}
+@keyframes draw{from{stroke-dashoffset:var(--len,600)}to{stroke-dashoffset:0}}
+@keyframes grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes flow{to{stroke-dashoffset:-40}}
+@keyframes gear{to{transform:rotate(360deg)}}
+@keyframes gearR{to{transform:rotate(-360deg)}}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes unroll{0%{transform:scaleY(.08);opacity:.2}35%{transform:scaleY(1);opacity:1}85%{transform:scaleY(1);opacity:1}100%{transform:scaleY(.08);opacity:.2}}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes scroll{to{transform:translateY(-36px)}}
+@keyframes sweep{from{stroke-dashoffset:var(--len)}}
+.grow{transform-box:fill-box;transform-origin:50% 100%;animation:grow .9s cubic-bezier(.2,.8,.2,1) both}
+.drawn{stroke-dasharray:var(--len,600);animation:draw 1.4s cubic-bezier(.3,.7,.2,1) both}
+.gear{transform-box:fill-box;transform-origin:center;animation:gear 9s linear infinite}
+.gear.r{animation-name:gearR;animation-duration:6s}
+.bob{animation:bob 4s ease-in-out infinite}
+.paper{transform-box:fill-box;transform-origin:50% 100%;animation:unroll 7s cubic-bezier(.4,0,.2,1) infinite}
+.led{animation:blink 1.6s ease-in-out infinite}
+.scrolling{animation:scroll 3.2s linear infinite}
+.flowing{stroke-dasharray:6 6;animation:flow 1.6s linear infinite}
+@media (prefers-reduced-motion:reduce){.paper{animation:none!important}*,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
+</style>
+</head>
+<body>
+<canvas id="stars" aria-hidden="true"></canvas>
+<div class="app">
+  <aside class="side glass" id="side" aria-label="Navigation">
+    <div class="logo">
+      <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22D3EE"/><stop offset=".5" stop-color="#8B5CF6"/><stop offset="1" stop-color="#F472B6"/></linearGradient></defs><circle cx="17" cy="17" r="12" fill="none" stroke="url(#lg)" stroke-width="4"/><path d="M17 17 L27 10" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/><circle cx="17" cy="17" r="2.6" fill="#fff"/></svg>
+      <div><b>Tech Stack Scout</b><span>Account Intelligence</span></div>
+    </div>
+    <div class="sec">General</div>
+    <button class="nav" data-view="dashboard" aria-current="page"><svg viewBox="0 0 20 20" fill="currentColor"><rect x="2" y="2" width="7" height="7" rx="2"/><rect x="11" y="2" width="7" height="7" rx="2"/><rect x="2" y="11" width="7" height="7" rx="2"/><rect x="11" y="11" width="7" height="7" rx="2"/></svg>Dashboard</button>
+    <button class="nav" data-view="accounts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="7" cy="7" r="3"/><path d="M2 17c0-3 2.2-5 5-5s5 2 5 5"/><circle cx="14.5" cy="6.5" r="2.3"/><path d="M13 12.2c2.7-.4 5 1.4 5 4.8"/></svg>Accounts</button>
+    <button class="nav" data-view="watchlist"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 3h12v15l-6-3.5L4 18z"/></svg>Watchlist<span class="count" id="navCount">0</span></button>
+    <div class="sec">Tools</div>
+    <button class="nav" data-view="signals"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 10h3l2-6 3 12 2-8 2 4h4"/></svg>Signal ledger</button>
+    <button class="nav" data-view="pipeline"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="3"/><path d="M10 1.5v3M10 15.5v3M1.5 10h3M15.5 10h3M4 4l2 2M14 14l2 2M4 16l2-2M14 6l2-2"/></svg>Pipeline health</button>
+    <button class="nav" data-view="prompts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 4h14M3 9h10M3 14h7"/><path d="M14 13l3 3-3 3" transform="translate(0,-2)"/></svg>Prompt chain<span class="tag">GEMINI</span></button>
+    <div class="sec">Support</div>
+    <button class="nav" data-view="about"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6v.5"/></svg>How it works</button>
+    <div class="promo">
+      <svg viewBox="0 0 200 110" aria-hidden="true" style="width:100%;height:auto">
+        <g class="bob"><path d="M60 70 L100 50 L140 70 L100 90 Z" fill="#2B2560" stroke="#6B63C9" stroke-width="1"/><path d="M60 70 L100 90 L100 96 L60 76 Z" fill="#1E1A48"/><path d="M140 70 L100 90 L100 96 L140 76 Z" fill="#17143A"/></g>
+        <g transform="translate(150 28)"><g class="gear"><path d="M12 0l3 4 5-1 1 5 4 3-3 4 1 5-5 1-3 4-4-3-5 1-1-5-4-3 3-4-1-5 5-1z" fill="#6366F1"/><circle cx="12" cy="12" r="4" fill="#120F2B"/></g></g>
+        <g transform="translate(30 30)"><g class="gear r"><path d="M9 0l2 3 4-1 1 4 3 2-2 3 1 4-4 1-2 3-3-2-4 1-1-4-3-2 2-3-1-4 4-1z" fill="#22D3EE" opacity=".85"/><circle cx="9" cy="9" r="3" fill="#120F2B"/></g></g>
+        <g class="paper" style="animation-duration:5s"><rect x="84" y="20" width="32" height="44" rx="3" fill="#EEEDFF"/><path d="M89 52 L95 44 L101 48 L110 33" fill="none" stroke="#8B5CF6" stroke-width="2"/><rect x="89" y="26" width="18" height="2.5" rx="1" fill="#B9B5E0"/></g>
+      </svg>
+      <p id="promoText">Next weekly refresh: Monday 08:47 IST. Add a company and it is researched within minutes.</p>
+      <button class="btn primary" data-go="watchlist">Add a company</button>
+    </div>
+    <small>© 2026 Tech Stack Scout · Mesa C4</small>
+  </aside>
+
+  <main>
+    <header class="top glass">
+      <button class="iconbtn burger" id="burger" aria-label="Open navigation"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 5h14M3 10h14M3 15h14"/></svg></button>
+      <label class="search"><svg width="15" height="15" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="9" r="6"/><path d="M14 14l4 4"/></svg><input id="q" type="text" placeholder="Search companies, tech, hooks" aria-label="Search"><span class="kbd">⌘ F</span></label>
+      <span class="spacer"></span>
+      <span class="chip"><span class="eq"><i></i><i></i><i></i><i></i><i></i></span><span id="streamLabel">Data streaming</span></span>
+      <span class="chip live" id="modeChip"><span class="dot"></span><span id="modeLabel">Live system health</span></span>
+      <span class="user"><span class="avatar">NK</span><span class="who"><b>Nikhil</b><span>Enterprise AE</span></span></span>
+    </header>
+
+    <!-- DASHBOARD -->
+    <section data-v="dashboard" class="view grid">
+      <div class="ph"><h1>Dashboard</h1>
+        <span class="btn" id="asOf"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="14" height="13" rx="2"/><path d="M3 8h14M7 2v4M13 2v4"/></svg><span></span></span>
+        <span class="btn">Weekly</span>
+        <button class="btn" data-go="accounts"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h14l-5 6v5l-4-2v-3z"/></svg>Filter</button>
+        <button class="btn" id="exportBtn"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3v10M6 9l4 4 4-4M4 17h12"/></svg>Copy brief</button>
+      </div>
+
+      <div class="glass hero rise" style="animation-delay:.02s">
+        <div>
+          <h2 id="heroTitle">This week's engineering briefs are printed.</h2>
+          <p id="heroText">Every account on the watchlist was re-read from GitHub, job boards and engineering blogs. Only what changed is flagged.</p>
+          <div class="row"><button class="btn primary" data-go="accounts">Open top account</button><button class="btn" data-go="pipeline">See what changed</button></div>
+        </div>
+        <svg id="heroScene" viewBox="0 0 440 250" role="img" aria-label="A laptop printing a report while servers process data"></svg>
+      </div>
+
+      <div class="grid k3">
+        <article class="glass card rise" style="animation-delay:.08s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><path d="M10 10l4-3"/></svg></span><h3>Watchlist Readiness</h3><span class="end"><span class="pill ok" id="readyPill">—</span><span class="info" title="Share of active accounts with a verified, cited brief">i</span></span></div>
+          <div class="kpi"><svg id="gauge" viewBox="0 0 120 78" width="120" height="78" role="img" aria-label="Readiness gauge"></svg><svg class="spark" id="spark1" viewBox="0 0 200 46" preserveAspectRatio="none"></svg></div>
+        </article>
+        <article class="glass card rise" style="animation-delay:.14s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16V9M10 16V4M16 16v-5"/></svg></span><h3>Evidence Facts</h3><span class="end"><span class="info" title="Typed, quoted facts in the latest snapshots">i</span></span></div>
+          <div class="kpi"><div><div class="big" id="factsBig">0</div><p class="sub" id="factsSub">&nbsp;</p></div><svg class="spark" id="spark2" viewBox="0 0 200 46" preserveAspectRatio="none"></svg></div>
+        </article>
+        <article class="glass card rise" style="animation-delay:.2s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 15l5-5 3 3 6-7"/></svg></span><h3>Call This Week</h3><span class="end"><span class="info" title="ICP fit ≥ 0.65 and why-now ≥ 0.5">i</span></span></div>
+          <div class="kpi"><div><div class="big" id="callBig">0</div><p class="sub" id="callSub">&nbsp;</p></div><svg class="spark" id="spark3" viewBox="0 0 200 46" preserveAspectRatio="none"></svg></div>
+        </article>
+      </div>
+
+      <div class="grid r2">
+        <article class="glass card rise" style="animation-delay:.26s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5c6 0 8 10 14 10M3 15c6 0 8-10 14-10"/></svg></span><h3>Cross-Stack Flow</h3><span class="end"><button class="btn" data-go="signals">Ledger</button></span></div>
+          <div><div class="big" id="flowBig">0 accounts</div><span class="delta"><b class="up" id="flowDelta">—</b><span id="flowSub">dominant language → infrastructure → opening hook</span></span></div>
+          <svg class="chart" id="sankey" viewBox="0 0 640 300" role="img" aria-label="Flow from dominant language to infrastructure to hook type"></svg>
+        </article>
+        <article class="glass card rise" style="animation-delay:.32s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 17V8M10 17V3M16 17v-6"/></svg></span><h3>Why-Now Ranking</h3><span class="end"><span class="pill warn" id="alertPill">Change alert</span></span></div>
+          <div><div class="big" id="rankBig">—</div><span class="delta"><b class="up" id="rankDelta">—</b><span id="rankSub">top accounts by buying-moment score</span></span></div>
+          <svg class="chart" id="ranking" viewBox="0 0 420 300" role="img" aria-label="Accounts ranked by why-now score"></svg>
+        </article>
+      </div>
+
+      <div class="grid r2b">
+        <article class="glass card rise" style="animation-delay:.38s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="3"/></svg></span><h3>Signal Source Mix</h3><span class="end"><span class="btn">This week</span></span></div>
+          <div style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);align-items:center;gap:8px">
+            <div id="donutWrap" style="perspective:700px"><svg id="donut" viewBox="0 0 220 220" class="chart" style="transform:rotateX(52deg);transform-origin:50% 60%;max-width:260px;margin:auto" role="img" aria-label="Facts by source"></svg></div>
+            <div class="legend" id="donutLegend" style="flex-direction:column;align-items:flex-start;gap:10px"></div>
+          </div>
+        </article>
+        <article class="glass card rise" style="animation-delay:.44s">
+          <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M7 7h6v6H7zM2 10h5M13 10h5M10 2v5M10 13v5"/></svg></span><h3>System Connections</h3><span class="end"><button class="btn" data-go="pipeline">See all</button></span></div>
+          <div class="tw"><table id="conn"><thead><tr><th>Application</th><th>System health</th><th>Sync frequency</th><th>Automation hooks</th></tr></thead><tbody></tbody></table></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ACCOUNTS -->
+    <section data-v="accounts" class="view grid" hidden>
+      <div class="ph"><h1>Accounts</h1>
+        <select id="fTier" aria-label="Evidence tier"><option value="">All tiers</option><option>A</option><option>B</option><option>C</option></select>
+        <select id="fSort" aria-label="Sort"><option value="why">Sort: why-now × fit</option><option value="fit">Sort: ICP fit</option><option value="name">Sort: name</option></select>
+      </div>
+      <div class="acct">
+        <article class="glass card rise"><div class="tw"><table id="accTable"><thead><tr><th>Company</th><th>Tier</th><th class="num">Fit</th><th class="num">Why now</th><th>Hook</th></tr></thead><tbody></tbody></table></div></article>
+        <div id="detail" class="grid"></div>
+      </div>
+    </section>
+
+    <!-- WATCHLIST -->
+    <section data-v="watchlist" class="view grid" hidden>
+      <div class="ph"><h1>Watchlist</h1><span class="sub" id="wlSub"></span></div>
+      <article class="glass card rise">
+        <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 4v12M4 10h12"/></svg></span><h3>Add a company</h3></div>
+        <form class="form" id="addForm" autocomplete="off">
+          <label>Company name<input id="fName" type="text" required placeholder="e.g. PostHog"></label>
+          <label>Website domain<input id="fDomain" type="text" required placeholder="posthog.com"></label>
+          <label>Writing for<select id="fPersona"><option>VP Engineering</option><option>Platform Lead</option><option>DevOps Manager</option><option>Staff Engineer</option></select></label>
+          <label>Stage<select id="fStage"><option>Prospect</option><option>Contacted</option><option>Replied</option><option>Meeting</option><option>Opportunity</option></select></label>
+          <button class="btn primary" type="submit" id="addBtn">Add and research</button>
+        </form>
+        <p class="sub">GitHub org, job board and blog feed are found automatically. You can also add or remove rows straight in the Supabase table <code>watchlist</code>.</p>
+      </article>
+      <article class="glass card rise"><div class="tw"><table id="wlTable"><thead><tr><th>Company</th><th>GitHub</th><th>Job board</th><th>Blog feed</th><th>Persona</th><th>Status</th><th>Last refresh</th><th></th></tr></thead><tbody></tbody></table></div></article>
+    </section>
+
+    <!-- SIGNALS -->
+    <section data-v="signals" class="view grid" hidden>
+      <div class="ph"><h1>Signal ledger</h1></div>
+      <div class="grid k3" id="sigKpis"></div>
+      <div class="grid r2">
+        <article class="glass card rise"><div class="hd"><h3>Which source proves which claim</h3></div><div class="tw" id="matrix"></div><p class="sub">Languages come from GitHub; cloud and orchestration lean on job posts and blogs. Sources are weighted per claim type.</p></article>
+        <article class="glass card rise"><div class="hd"><h3>What the ledger believes</h3></div><svg class="chart" id="states" viewBox="0 0 420 240" role="img" aria-label="Facts by state"></svg></article>
+      </div>
+      <article class="glass card rise"><div class="hd"><h3>Needs a human before the next send</h3></div><div class="tw" id="review"></div></article>
+    </section>
+
+    <!-- PIPELINE -->
+    <section data-v="pipeline" class="view grid" hidden>
+      <div class="ph"><h1>Pipeline health</h1></div>
+      <div class="grid k3" id="pipeKpis"></div>
+      <div class="grid r2">
+        <article class="glass card rise"><div class="hd"><h3 id="runChartTitle">Refresh runs</h3></div><svg class="chart" id="runChart" viewBox="0 0 640 260" role="img" aria-label="Refresh run durations"></svg></article>
+        <article class="glass card rise"><div class="hd"><h3>What changed</h3><span class="end"><span class="pill hook">alerts only on material change</span></span></div><div class="feed" id="feed"></div></article>
+      </div>
+      <article class="glass card rise"><div class="hd"><h3>Run log</h3></div><div class="tw" id="runLog"></div></article>
+    </section>
+
+    <!-- PROMPTS -->
+    <section data-v="prompts" class="view grid" hidden>
+      <div class="ph"><h1>Prompt chain</h1></div>
+      <article class="glass card rise"><svg class="chart" id="chain" viewBox="0 0 900 230" role="img" aria-label="The prompt chain from collectors to verifier"></svg></article>
+      <div class="grid r2">
+        <article class="glass card rise"><div class="hd"><h3>P1 · Extractor (job posts)</h3><span class="end"><span class="pill">temp 0 · JSON schema</span></span></div><p class="sub">Reads up to six engineering postings and returns technologies with a verbatim quote. Any quote that is not an exact substring of the posting is dropped in code.</p></article>
+        <article class="glass card rise"><div class="hd"><h3>P2 · Brief writer → verifier → P3 repair</h3><span class="end"><span class="pill">closed vocabulary</span></span></div><p class="sub">Gets a numbered fact sheet and pre-scored hypotheses. Every sentence must cite fact IDs. Code rejects unknown technologies, unsupported numbers, banned phrases and long openers, then asks once for a repair before falling back to a safe template.</p></article>
+      </div>
+    </section>
+
+    <!-- ABOUT -->
+    <section data-v="about" class="view grid" hidden>
+      <div class="ph"><h1>How it works</h1></div>
+      <article class="glass card rise"><div class="summary" id="aboutText"></div></article>
+    </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>window.SCOUT_CONFIG={"url": "https://tsrjxkuqqqivoygaskng.supabase.co", "key": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRzcmp4a3VxcXFpdm95Z2Fza25nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE3MDY1NTAsImV4cCI6MjEwNzI4MjU1MH0.mkinCTDzJfj48nhnjaHlGTRsRNFi3B3vcngSAbpMWZM"};</script>
+<script>
+/* Tech Stack Scout console. Live mode reads Supabase over REST; demo mode uses the embedded sample. */
+const CFG = window.SCOUT_CONFIG || {};
+const DEMO = window.SCOUT_DEMO;
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const NS = 'http://www.w3.org/2000/svg';
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const last = a => a[a.length - 1];
+const pct = v => Math.round(v * 100) + '%';
+const PAL = ['#8B5CF6','#3B82F6','#22D3EE','#2DD4BF','#4ADE80','#FACC15','#FB923C','#F87171','#F472B6','#6366F1'];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+function el(tag, attrs = {}, parent, text) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; if (parent) parent.appendChild(e); return e; }
+function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 3400); }
+function fmtDate(s) { if (!s) return '—'; const d = new Date(s); return d.toLocaleDateString('en-GB', {day: 'numeric', month: 'short'}); }
+function ago(s) { if (!s) return 'never'; const m = (Date.now() - new Date(s)) / 6e4; if (m < 1) return 'just now'; if (m < 60) return Math.round(m) + ' min ago'; if (m < 1440) return Math.round(m / 60) + ' h ago'; return Math.round(m / 1440) + ' d ago'; }
+function countUp(node, to, fmt = v => Math.round(v).toLocaleString('en-US'), ms = 1100) {
+  if (reduce) { node.textContent = fmt(to); return; }
+  const t0 = performance.now(); const step = t => { const k = Math.min(1, (t - t0) / ms), e = 1 - Math.pow(1 - k, 3); node.textContent = fmt(to * e); if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step);
+}
+function initials(n) { return n.split(/[\s.-]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase(); }
+const short = n => n.length > 11 ? n.split(' ')[0].slice(0, 11) : n;
+
+/* ---------- state ---------- */
+let M = null, view = 'dashboard', selId = null, poll = null;
+const live = !!(CFG.url && CFG.key);
+const H = () => ({apikey: CFG.key, Authorization: 'Bearer ' + CFG.key, 'Content-Type': 'application/json'});
+async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1/' + path, {...opts, headers: {...H(), ...(opts.headers || {})}}); if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 160)); return r.status === 204 ? null : r.json(); }
+
+async function loadLive() {
+  const [acc, runs, events, fb, snaps] = await Promise.all([
+    rest('v_accounts?select=*&order=name'),
+    rest('pipeline_runs?select=*&order=started_at.desc&limit=300'),
+    rest('events?select=*&order=created_at.desc&limit=60'),
+    rest('feedback?select=action,created_at&order=created_at.desc&limit=500'),
+    rest('snapshots?select=account_id,taken_at,ci_median_min,eng_roles,platform_roles&order=taken_at.asc&limit=2000'),
+  ]);
+  const snapIds = acc.map(a => a.snapshot_id).filter(Boolean);
+  const sigs = snapIds.length ? await rest(`signals?select=*&snapshot_id=in.(${snapIds.join(',')})&order=id`) : [];
+  const name = Object.fromEntries(acc.map(a => [a.id, a.name]));
+  const accounts = acc.map(a => {
+    const hist = snaps.filter(s => s.account_id === a.id);
+    return {
+      id: a.id, name: a.name, domain: a.domain, persona: a.persona, stage: a.stage, active: a.active, status: a.refresh_status, error: a.refresh_error,
+      last_refreshed: a.last_refreshed_at, github_org: a.github_org, ats: a.ats_provider ? `${a.ats_provider}:${a.ats_slug}` : null, blog: a.blog_feed,
+      mapping_confidence: +a.mapping_confidence || 0, tier: a.evidence_tier || 'C', icp: +a.icp_fit || 0, why_now: +a.why_now || 0,
+      languages: a.languages || {}, ci: a.ci_median_min != null ? +a.ci_median_min : null, ci_repo: a.ci_repo, eng_roles: a.eng_roles, platform_roles: a.platform_roles,
+      active30: a.active_repos_30d, public_repos: a.public_repos, posts: a.blog_posts || [], hyps: a.hypotheses || [], diff: a.diff || [], competitor: null,
+      brief: a.brief_id ? {id: a.brief_id, summary: a.summary, opener: a.opener, cites: a.opener_cites || [], hook: a.hook_type, discovery: a.discovery || [], verifier_passed: a.verifier_passed, repaired: a.repaired, fallback: a.used_fallback, model: a.model} : null,
+      signals: sigs.filter(s => s.snapshot_id === a.snapshot_id).map(s => ({fid: s.fid, tech: s.tech, category: s.category, state: s.state, confidence: +s.confidence, source: s.source, strength: s.strength, url: s.source_url, quote: s.quote})),
+      history: {dates: hist.map(h => h.taken_at), ci: hist.map(h => h.ci_median_min != null ? +h.ci_median_min : null), eng: hist.map(h => h.eng_roles), plat: hist.map(h => h.platform_roles)},
+    };
+  });
+  return {mode: 'live', as_of: accounts.map(a => a.last_refreshed).filter(Boolean).sort().pop() || new Date().toISOString(), accounts,
+    runs: runs.map(r => ({...r, account: name[r.account_id] || '—'})), events: events.map(e => ({account: name[e.account_id] || '—', at: e.created_at, detail: e.detail, kind: e.kind})), feedback: fb};
+}
+
+async function load() {
+  if (live) {
+    try { M = await loadLive(); }
+    catch (e) { console.warn('Live load failed', e); M = DEMO || {mode: 'live', as_of: new Date().toISOString(), accounts: [], runs: [], events: [], feedback: []}; if (!DEMO) toast('Could not reach Supabase: ' + e.message); }
+  } else M = DEMO;
+  const isLive = M.mode === 'live';
+  $('#modeChip').className = 'chip ' + (isLive ? 'live' : 'demo');
+  $('#modeLabel').textContent = isLive ? 'Live system health' : 'Sample data · fictional';
+  $('#streamLabel').textContent = isLive ? 'Supabase streaming' : 'Data streaming';
+  render();
+  const busy = isLive && M.accounts.some(a => a.status === 'queued' || a.status === 'running');
+  clearTimeout(poll); if (busy) poll = setTimeout(load, 8000);
+}
+
+/* ---------- derived ---------- */
+const act = () => M.accounts.filter(a => a.active !== false);
+const callNow = () => act().filter(a => a.icp >= .65 && a.why_now >= .5);
+const ready = () => act().filter(a => a.brief && a.brief.opener && (a.brief.verifier_passed || M.mode === 'demo'));
+const allSignals = () => act().flatMap(a => a.signals.map(s => ({...s, account: a})));
+const topLang = a => Object.entries(a.languages || {}).sort((x, y) => y[1] - x[1])[0]?.[0] || 'Unknown';
+function primaryInfra(a) {
+  const order = ['kubernetes', 'aws', 'gcp', 'azure', 'cloudflare', 'vercel', 'docker', 'terraform', 'nomad'];
+  const s = a.signals.filter(x => x.state !== 'noise').map(x => x.tech);
+  const hit = order.find(t => s.includes(t)); if (hit) return hit;
+  const c = (a.cloud || '').toLowerCase(); if (c) return c.split(/[→ +]/)[0];
+  return 'unknown';
+}
+
+/* ---------- charts ---------- */
+function spark(svg, values, color) {
+  clear(svg); const v = values.filter(x => x != null); if (v.length < 2) { el('line', {x1: 0, x2: 200, y1: 40, y2: 40, stroke: 'rgba(255,255,255,.12)', 'stroke-dasharray': '3 4'}, svg); el('text', {x: 200, y: 30, 'text-anchor': 'end', 'font-size': 10, fill: '#8580B0'}, svg, 'trend builds weekly'); return; }
+  const mn = Math.min(...v), mx = Math.max(...v), r = mx - mn || 1, X = i => i * 200 / (v.length - 1), Y = x => 42 - (x - mn) / r * 36;
+  const id = 'g' + Math.random().toString(36).slice(2, 7);
+  const g = el('linearGradient', {id, x1: 0, y1: 0, x2: 0, y2: 1}, el('defs', {}, svg)); el('stop', {offset: 0, 'stop-color': color, 'stop-opacity': .35}, g); el('stop', {offset: 1, 'stop-color': color, 'stop-opacity': 0}, g);
+  const d = v.map((x, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(x).toFixed(1)).join('');
+  el('path', {d: d + ` L200 46 L0 46Z`, fill: `url(#${id})`}, svg);
+  const p = el('path', {d, fill: 'none', stroke: color, 'stroke-width': 2, 'vector-effect': 'non-scaling-stroke', class: 'drawn', style: '--len:400'}, svg);
+  el('circle', {cx: 200, cy: Y(last(v)), r: 3.5, fill: color}, svg);
+}
+function gauge(svg, frac) {
+  clear(svg); const cx = 60, cy = 62, r = 46, a0 = Math.PI, arc = t => { const a = a0 + t * Math.PI; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const id = 'gg'; const g = el('linearGradient', {id, x1: 0, x2: 1}, el('defs', {}, svg));
+  [['0', '#F87171'], ['.5', '#FACC15'], ['1', '#4ADE80']].forEach(([o, c]) => el('stop', {offset: o, 'stop-color': c}, g));
+  const [x0, y0] = arc(0), [x1, y1] = arc(1);
+  el('path', {d: `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`, fill: 'none', stroke: 'rgba(255,255,255,.08)', 'stroke-width': 9, 'stroke-linecap': 'round'}, svg);
+  const len = Math.PI * r;
+  el('path', {d: `M${x0} ${y0} A${r} ${r} 0 0 1 ${x1} ${y1}`, fill: 'none', stroke: `url(#${id})`, 'stroke-width': 9, 'stroke-linecap': 'round', 'stroke-dasharray': `${len * frac} ${len}`, class: 'drawn', style: `--len:${len}`}, svg);
+  const t = el('text', {x: cx, y: cy - 4, 'text-anchor': 'middle', 'font-size': 22, 'font-weight': 700, fill: '#EEEDFF'}, svg, '0%');
+  el('text', {x: 14, y: 76, 'font-size': 9, fill: '#8580B0'}, svg, '0'); el('text', {x: 106, y: 76, 'text-anchor': 'end', 'font-size': 9, fill: '#8580B0'}, svg, '100');
+  countUp(t, frac * 100, v => Math.round(v) + '%');
+}
+
+function sankey(svg) {
+  clear(svg); const A = act().filter(a => a.signals.length || Object.keys(a.languages || {}).length);
+  const W = 640, Hh = 300, top = 22, bot = 26, nodeW = 92, gap = 8;
+  if (!A.length) { el('text', {x: W / 2, y: 150, 'text-anchor': 'middle', fill: '#8580B0', 'font-size': 13}, svg, 'Flows appear after the first refresh'); return; }
+  let flows = A.map(a => [topLang(a), primaryInfra(a), (a.brief && a.brief.hook) || 'no opener']);
+  for (const c of [0, 1]) { const m = {}; flows.forEach(f => m[f[c]] = (m[f[c]] || 0) + 1); const keep = new Set(Object.entries(m).sort((x, y) => y[1] - x[1]).slice(0, 5).map(e => e[0])); flows = flows.map(f => { const g = [...f]; if (!keep.has(g[c])) g[c] = 'other'; return g; }); }
+  const cols = [0, 1, 2].map(c => { const m = {}; flows.forEach(f => m[f[c]] = (m[f[c]] || 0) + 1); return Object.entries(m).sort((x, y) => y[1] - x[1]); });
+  const xs = [8, (W - nodeW) / 2, W - nodeW - 8];
+  const unit = Math.min(...cols.map(c => (Hh - top - bot - gap * (c.length - 1)) / A.length));
+  const pos = cols.map((c, ci) => { let y = top; const m = {}; c.forEach(([k, n]) => { m[k] = {y, h: n * unit, used0: 0, used1: 0, n}; y += n * unit + gap; }); return m; });
+  ['Language', 'Infrastructure', 'Hook'].forEach((t, i) => el('text', {x: xs[i] + nodeW / 2, y: Hh - 6, 'text-anchor': 'middle', 'font-size': 11.5, fill: '#8580B0'}, svg, t));
+  const colorOf = {}; cols[0].forEach(([k], i) => colorOf[k] = PAL[i % PAL.length]);
+  const ribbons = el('g', {}, svg);
+  const link = (c, a, b, color, k) => {
+    const A1 = pos[c][a], B1 = pos[c + 1][b], x0 = xs[c] + nodeW, x1 = xs[c + 1];
+    const ya = A1.y + A1.used1, yb = B1.y + B1.used0; A1.used1 += unit; B1.used0 += unit; const xm = (x0 + x1) / 2;
+    const p = el('path', {d: `M${x0} ${ya} C${xm} ${ya} ${xm} ${yb} ${x1} ${yb} L${x1} ${yb + unit} C${xm} ${yb + unit} ${xm} ${ya + unit} ${x0} ${ya + unit}Z`, fill: color, 'fill-opacity': .32, stroke: color, 'stroke-opacity': .25}, ribbons);
+    if (!reduce) { p.style.opacity = 0; p.style.transition = 'opacity .8s ease ' + (0.3 + k * 0.04) + 's'; requestAnimationFrame(() => requestAnimationFrame(() => p.style.opacity = 1)); }
+    return p;
+  };
+  flows.forEach((f, k) => { const c = colorOf[f[0]]; const p1 = link(0, f[0], f[1], c, k); const p2 = link(1, f[1], f[2], c, k); const t = `${A[k].name}: ${f.join(' → ')}`; el('title', {}, p1, t); el('title', {}, p2, t); });
+  cols.forEach((c, ci) => c.forEach(([k, n], i) => {
+    const p = pos[ci][k], color = ci === 0 ? colorOf[k] : ci === 1 ? '#3B82F6' : '#2DD4BF';
+    const r = el('rect', {x: xs[ci], y: p.y, width: nodeW, height: Math.max(p.h, 3), rx: 6, fill: color, 'fill-opacity': ci === 0 ? .85 : .6, stroke: 'rgba(255,255,255,.18)'}, svg);
+    el('title', {}, r, `${k}: ${n} account${n > 1 ? 's' : ''}`);
+    if (p.h >= 14) el('text', {x: xs[ci] + nodeW / 2, y: p.y + p.h / 2 + 4, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, fill: '#fff'}, svg, (k.replace('_', ' ').length > 13 ? k.replace('_', ' ').slice(0, 12) + '…' : k.replace('_', ' ')));
+  }));
+  $('#flowBig').textContent = A.length + ' accounts';
+  $('#flowDelta').textContent = cols[0][0] ? `${cols[0][0][0]} leads` : '—';
+}
+
+function ranking(svg) {
+  clear(svg); const A = [...act()].sort((a, b) => b.why_now - a.why_now).slice(0, 7);
+  const W = 420, Hh = 300, base = 262, topY = 58, bw = 36;
+  if (!A.length) return;
+  const step = (W - 20) / A.length, X = i => 10 + i * step + (step - bw) / 2;
+  const defs = el('defs', {}, svg);
+  A.forEach((a, i) => {
+    const c = PAL[i % PAL.length], id = 'rb' + i; const g = el('linearGradient', {id, x1: 0, y1: 0, x2: 0, y2: 1}, defs);
+    el('stop', {offset: 0, 'stop-color': c}, g); el('stop', {offset: 1, 'stop-color': c, 'stop-opacity': .35}, g);
+    const h = Math.max(8, a.why_now * (base - topY)), y = base - h;
+    const r = el('rect', {x: X(i), y, width: bw, height: h, rx: 10, fill: `url(#${id})`, class: 'grow', style: `animation-delay:${.35 + i * .07}s;cursor:pointer`}, svg);
+    el('title', {}, r, `${a.name}: why-now ${a.why_now.toFixed(2)}, fit ${a.icp.toFixed(2)}`);
+    r.addEventListener('click', () => { selId = a.id; go('accounts'); });
+    const av = el('g', {style: 'cursor:pointer'}, svg); av.addEventListener('click', () => { selId = a.id; go('accounts'); });
+    el('circle', {cx: X(i) + bw / 2, cy: y - 18, r: 15, fill: '#120F2B', stroke: c, 'stroke-width': 2}, av);
+    el('text', {x: X(i) + bw / 2, y: y - 14, 'text-anchor': 'middle', 'font-size': 10.5, 'font-weight': 700, fill: '#fff'}, av, initials(a.name));
+    el('text', {x: X(i) + bw / 2, y: base + 18, 'text-anchor': 'middle', 'font-size': 11, fill: '#B9B5E0'}, svg, short(a.name));
+    el('text', {x: X(i) + bw / 2, y: base - 8, 'text-anchor': 'middle', 'font-size': 10.5, 'font-weight': 700, fill: '#0B0A1C'}, svg, Math.round(a.why_now * 100));
+  });
+  const changed = act().filter(a => (a.diff || []).some(d => d !== 'First snapshot')).length;
+  $('#rankBig').textContent = A[0].name; $('#rankDelta').textContent = `${Math.round(A[0].why_now * 100)} / 100`;
+  $('#alertPill').textContent = changed ? `${changed} changed` : 'No changes';
+}
+
+function donut(svg) {
+  clear(svg); const S = allSignals().filter(s => s.state !== 'noise');
+  const srcs = [['github', 'GitHub', '#8B5CF6'], ['job_post', 'Job posts', '#3B82F6'], ['blog', 'Eng blog', '#FACC15'], ['dns', 'DNS', '#2DD4BF']];
+  const vals = srcs.map(([k]) => S.filter(s => s.source === k).length); const tot = vals.reduce((s, v) => s + v, 0) || 1;
+  const cx = 110, cy = 110, R = 92, r = 54;
+  for (let layer = 7; layer >= 0; layer--) {
+    let a0 = -Math.PI / 2; const g = el('g', {transform: `translate(0 ${layer * 1.6})`, opacity: layer ? .55 : 1}, svg);
+    vals.forEach((v, i) => { if (!v) return; const a1 = a0 + v / tot * Math.PI * 2, large = a1 - a0 > Math.PI ? 1 : 0;
+      const P = (rad, a) => [cx + rad * Math.cos(a), cy + rad * Math.sin(a)];
+      const [x0, y0] = P(R, a0), [x1, y1] = P(R, a1), [x2, y2] = P(r, a1), [x3, y3] = P(r, a0);
+      const p = el('path', {d: `M${x0} ${y0} A${R} ${R} 0 ${large} 1 ${x1} ${y1} L${x2} ${y2} A${r} ${r} 0 ${large} 0 ${x3} ${y3}Z`, fill: layer ? '#1A163F' : srcs[i][2], 'fill-opacity': layer ? .9 : .95, stroke: '#0B0A1C', 'stroke-width': layer ? 0 : 1.5}, g);
+      if (!layer) el('title', {}, p, `${srcs[i][1]}: ${v} facts (${Math.round(v / tot * 100)}%)`);
+      a0 = a1; });
+  }
+  if (!reduce) { svg.style.opacity = 0; svg.style.transition = 'opacity .9s ease .3s, transform 1.2s cubic-bezier(.2,.8,.2,1) .3s'; svg.style.transform = 'rotateX(52deg) rotateZ(-40deg)'; requestAnimationFrame(() => requestAnimationFrame(() => { svg.style.opacity = 1; svg.style.transform = 'rotateX(52deg) rotateZ(0deg)'; })); }
+  $('#donutLegend').innerHTML = srcs.map(([k, n, c], i) => `<span><i style="background:${c}"></i>${n} <b style="color:#EEEDFF;margin-left:4px">${vals[i]}</b></span>`).join('');
+}
+
+function connections() {
+  const A = act(), n = A.length || 1, isLive = M.mode === 'live';
+  const has = src => A.filter(a => a.signals.some(s => s.source === src)).length / n;
+  const gem = A.filter(a => a.brief && a.brief.model && a.brief.model !== 'template').length / n;
+  const runs = isLive ? M.runs : [];
+  const ok = isLive ? runs.slice(0, 20).filter(r => r.status === 'ok').length / Math.max(1, Math.min(20, runs.length)) : .95;
+  const dots = f => { const c = [f > .8 ? ['#4ADE80', '✓'] : f > .5 ? ['#FACC15', '!'] : ['#F87171', '!']]; return `<span class="hdots">${[0, 1, 2, 3].map(i => { const [col, s] = i < Math.round(f * 4) ? ['#4ADE80', '✓'] : c[0]; return `<i style="background:${col}">${s}</i>`; }).join('')}</span>`; };
+  const rows = [
+    ['GH', 'GitHub API', '#24292F', has('github'), 'Weekly + on add', .55, true],
+    ['JB', 'Job boards', '#3B82F6', has('job_post'), 'Greenhouse · Ashby · Lever', .55, true],
+    ['RS', 'Engineering blogs', '#FB923C', has('blog'), 'RSS / Atom', .4, true],
+    ['GM', 'Gemini Flash', '#8B5CF6', isLive ? gem : .9, 'On material change', .3, true],
+    ['SB', 'Supabase cron', '#2DD4BF', ok, 'Mon 08:47 IST', .7, true],
+    ['VC', 'Vercel', '#111827', 1, 'Every push', .9, isLive],
+  ];
+  $('#conn tbody').innerHTML = rows.map(r => `<tr><td><span class="app-ic" style="background:${r[2]}">${r[0]}</span>${r[1]}</td><td>${dots(r[3])} <span class="sub" style="display:inline;margin-left:6px">${pct(r[3])}</span></td><td><span class="sub" style="display:block;margin-bottom:4px">${r[4]}</span><span class="track"><i data-w="${r[5] * 100}"></i></span></td><td><span class="toggle ${r[6] ? 'on' : ''}" role="img" aria-label="${r[6] ? 'on' : 'off'}"></span></td></tr>`).join('');
+  requestAnimationFrame(() => $$('#conn .track i').forEach(i => i.style.width = i.dataset.w + '%'));
+}
+
+/* ---------- hero scene (isometric, animated) ---------- */
+function heroScene() {
+  const s = $('#heroScene'); if (s.childNodes.length) return; clear(s);
+  const g = el('g', {}, s);
+  const tile = (x, y, w = 34, c = '#2B2560') => { const t = el('g', {class: 'bob', style: `animation-delay:${(x % 7) / 3}s`}, g); el('path', {d: `M${x} ${y} l${w} ${-w / 2} l${w} ${w / 2} l${-w} ${w / 2}z`, fill: c, stroke: '#6B63C9', 'stroke-width': .8}, t); el('path', {d: `M${x} ${y} l${w} ${w / 2} v6 l${-w} ${-w / 2}z`, fill: '#1A163F'}, t); el('path', {d: `M${x + 2 * w} ${y} l${-w} ${w / 2} v6 l${w} ${-w / 2}z`, fill: '#14112F'}, t); return t; };
+  // connector lines (data flowing)
+  ['M70 205 L150 245 L230 205', 'M300 170 L360 200 L410 175', 'M200 150 L300 100'].forEach(d => el('path', {d, fill: 'none', stroke: '#6366F1', 'stroke-width': 1.4, class: 'flowing', opacity: .7}, g));
+  tile(40, 200); tile(250, 220, 26); tile(360, 200, 24); tile(330, 120, 22, '#312A6B');
+  // servers
+  [[300, 40], [338, 59], [376, 78]].forEach(([x, y], k) => {
+    const sv = el('g', {}, g);
+    el('path', {d: `M${x} ${y} l22 -11 l22 11 v84 l-22 11 l-22 -11z`, fill: '#262058'}, sv);
+    el('path', {d: `M${x} ${y} l22 11 v84 l-22 -11z`, fill: '#3B82F6', 'fill-opacity': .35}, sv);
+    el('path', {d: `M${x} ${y} l22 -11 l22 11 l-22 11z`, fill: '#4B44A0'}, sv);
+    for (let i = 0; i < 7; i++) el('rect', {x: x + 5, y: y + 10 + i * 10 + (i * 2.4), width: 12, height: 2.2, fill: '#22D3EE', class: 'led', style: `animation-delay:${(i * .23 + k * .4).toFixed(2)}s`, transform: `skewY(26)`, 'transform-origin': `${x} ${y}`}, sv);
+  });
+  // laptop
+  const lp = el('g', {}, g);
+  el('path', {d: 'M90 170 L190 120 L270 160 L170 210 Z', fill: '#D9D7F5'}, lp);
+  el('path', {d: 'M90 170 L170 210 L170 216 L90 176 Z', fill: '#9B97D0'}, lp);
+  el('path', {d: 'M270 160 L170 210 L170 216 L270 166 Z', fill: '#B4B0E4'}, lp);
+  for (let r = 0; r < 4; r++) for (let c = 0; c < 9; c++) el('path', {d: `M${118 + c * 9 + r * 9} ${166 - c * 4.5 + r * 4.5} l7 -3.5 l5 2.5 l-7 3.5z`, fill: '#EEEDFF'}, lp);
+  el('path', {d: 'M190 120 L190 40 L270 80 L270 160 Z', fill: '#3B5BDB'}, lp);
+  el('path', {d: 'M194 118 L194 48 L266 84 L266 154 Z', fill: '#4F7BFF'}, lp);
+  // paper unrolling out of the screen with a chart drawing on it
+  const paper = el('g', {class: 'paper'}, g);
+  el('path', {d: 'M200 100 L200 8 L262 39 L262 131 Z', fill: '#FFFFFF'}, paper);
+  el('path', {d: 'M206 30 l20 10 M206 36 l34 17', stroke: '#B9B5E0', 'stroke-width': 2}, paper);
+  el('path', {d: 'M207 90 L217 70 L227 82 L238 58 L250 72 L256 60', fill: 'none', stroke: '#F87171', 'stroke-width': 2.2, class: 'drawn', style: '--len:120;animation-iteration-count:infinite;animation-duration:7s'}, paper);
+  el('path', {d: 'M207 98 L217 84 L227 92 L238 76 L250 84 L256 74', fill: 'none', stroke: '#22D3EE', 'stroke-width': 2.2, class: 'drawn', style: '--len:120;animation-iteration-count:infinite;animation-duration:7s;animation-delay:.3s'}, paper);
+  [[212, 112], [226, 119], [240, 126]].forEach(([x, y], i) => el('rect', {x, y: y - 14 + i * 2, width: 6, height: 12 - i * 3, fill: PAL[i + 1], class: 'grow', style: `animation-delay:${1 + i * .2}s`}, paper));
+  // gears
+  const gear = (x, y, s, cls, color) => { const gg = el('g', {transform: `translate(${x} ${y}) scale(${s})`}, g); const r = el('g', {class: 'gear' + cls}, gg); let d = ''; for (let i = 0; i < 10; i++) { const a = i / 10 * Math.PI * 2, a2 = a + Math.PI / 10; d += `${i ? 'L' : 'M'}${(20 * Math.cos(a)).toFixed(1)} ${(20 * Math.sin(a)).toFixed(1)} L${(15 * Math.cos(a2)).toFixed(1)} ${(15 * Math.sin(a2)).toFixed(1)} `; } el('path', {d: d + 'Z', fill: color}, r); el('circle', {r: 7, fill: '#120F2B'}, r); };
+  gear(40, 150, 1, '', '#EEEDFF'); gear(70, 132, .6, ' r', '#B9B5E0'); gear(28, 118, .45, '', '#8B5CF6');
+  // people on tiles
+  const person = (x, y, c, delay) => { const p = el('g', {class: 'bob', style: `animation-delay:${delay}s`}, g); el('rect', {x: x - 4, y: y - 26, width: 8, height: 18, rx: 3, fill: c}, p); el('circle', {cx: x, cy: y - 31, r: 4.5, fill: '#F3C7A7'}, p); el('rect', {x: x - 3.5, y: y - 9, width: 3, height: 10, fill: '#1E1A48'}, p); el('rect', {x: x + .5, y: y - 9, width: 3, height: 10, fill: '#1E1A48'}, p); };
+  person(276, 222, '#3B82F6', 0); person(386, 200, '#8B5CF6', 1.2); person(352, 122, '#2DD4BF', .6);
+}
+
+/* ---------- dashboard ---------- */
+function renderDashboard() {
+  const A = act(), R = ready(), S = allSignals().filter(s => s.state !== 'noise'), C = callNow();
+  $('#asOf span').textContent = 'As of ' + fmtDate(M.as_of) + (M.mode === 'demo' ? ' · sample' : '');
+  gauge($('#gauge'), A.length ? R.length / A.length : 0);
+  $('#readyPill').textContent = `${R.length}/${A.length} briefs`;
+  const series = M.mode === 'demo' ? M.weekly.map(w => w.accounts - w.failed) : M.runs.slice(0, 30).reverse().map(r => r.status === 'ok' ? 1 : 0).reduce((acc, v) => (acc.push((last(acc) || 0) + v), acc), []);
+  spark($('#spark1'), series, '#4ADE80');
+  countUp($('#factsBig'), S.length); $('#factsSub').textContent = `${new Set(S.map(s => s.account.id)).size} accounts · ${S.filter(s => s.source === 'job_post').length} from job posts`;
+  spark($('#spark2'), A.map(a => a.signals.length).sort((x, y) => x - y), '#FACC15');
+  countUp($('#callBig'), C.length); $('#callSub').textContent = C.length ? C.slice(0, 3).map(a => a.name).join(', ') : 'No account has both fit and timing yet';
+  spark($('#spark3'), [...A].sort((a, b) => a.why_now - b.why_now).map(a => a.why_now), '#FB923C');
+  sankey($('#sankey')); ranking($('#ranking')); donut($('#donut')); connections(); heroScene();
+  const top = [...A].sort((a, b) => b.why_now * b.icp - a.why_now * a.icp)[0];
+  const changed = A.filter(a => (a.diff || []).some(d => d !== 'First snapshot')).length;
+  $('#heroTitle').textContent = top ? `${top.name} is the account to call this week.` : 'Add companies to start the weekly brief.';
+  $('#heroText').textContent = top ? `${A.length} accounts re-read from GitHub, job boards and engineering blogs. ${changed} changed materially since the last run; the rest stay quiet.` : 'Each company you add is researched within minutes, then refreshed every Monday.';
+  $('#navCount').textContent = A.length;
+}
+
+/* ---------- accounts ---------- */
+function citeHTML(ids) { return (ids || []).map(id => `<span class="cite" data-fid="${esc(id)}" tabindex="0">${esc(id)}</span>`).join(''); }
+function renderAccounts() {
+  const q = $('#q').value.toLowerCase(), ft = $('#fTier').value, fs = $('#fSort').value;
+  let rows = act().filter(a => (!ft || a.tier === ft) && (!q || (a.name + ' ' + Object.keys(a.languages || {}).join(' ') + ' ' + a.signals.map(s => s.tech).join(' ') + ' ' + (a.brief?.hook || '')).toLowerCase().includes(q)));
+  rows.sort(fs === 'fit' ? (a, b) => b.icp - a.icp : fs === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.why_now * b.icp - a.why_now * a.icp);
+  if (!selId || !rows.find(r => r.id === selId)) selId = rows[0]?.id;
+  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${a.status === 'running' || a.status === 'queued' ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td><td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="5"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
+  $$('#accTable tbody tr[data-id]').forEach(tr => { const f = () => { selId = tr.dataset.id; renderAccounts(); }; tr.onclick = f; tr.onkeydown = e => e.key === 'Enter' && f(); });
+  renderDetail(rows.find(r => r.id === selId));
+}
+function renderDetail(a) {
+  const d = $('#detail'); if (!a) { d.innerHTML = ''; return; }
+  const b = a.brief || {}; const isLive = M.mode === 'live';
+  const langs = Object.entries(a.languages || {}).map(([k, v], i) => `<span class="pill" style="border-color:${PAL[i]}55"><i style="width:7px;height:7px;border-radius:50%;background:${PAL[i]};display:inline-block"></i>${esc(k)} ${v}%</span>`).join(' ');
+  const flags = [a.mapping_confidence < .8 && a.github_org ? `<span class="pill bad">verify GitHub org (${a.mapping_confidence.toFixed(2)})</span>` : '', a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">last refresh failed</span>` : '', b.fallback ? '<span class="pill warn">template fallback</span>' : '', b.repaired ? '<span class="pill warn">repaired once</span>' : '', b.verifier_passed ? '<span class="pill ok">verifier passed</span>' : ''].join(' ');
+  const summary = b.summary ? b.summary.map(p => `<p>${p.map(s => esc(s.text) + citeHTML(s.cites)).join(' ')}</p>`).join('') : '';
+  const facts = a.signals.length ? a.signals.map(s => `<div class="fact" id="fact-${esc(s.fid)}"><span class="fid">${esc(s.fid)}</span><span><b style="color:#EEEDFF">${esc(s.tech)}</b> <span class="sub" style="display:inline">${esc(s.category)} · ${esc(s.source.replace('_', ' '))}${s.strength && s.strength !== 'narrative' ? ' · ' + esc(s.strength) : ''}</span></span><span class="pill ${s.state === 'noise' ? '' : s.state.includes('migrating') || s.state === 'hiring_only' ? 'warn' : 'ok'}">${esc(s.state.replace('_', ' '))} · ${(+s.confidence).toFixed(2)}</span><span class="q">“${esc(s.quote)}” ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a>` : ''} ${isLive && s.state !== 'noise' && !['hiring', 'github activity', 'blog post'].includes(s.tech) ? `<button class="btn" style="padding:2px 8px;font-size:11px" data-wrong="${esc(s.tech)}">Mark wrong</button>` : ''}</span></div>`).join('') : '<div class="empty">No facts yet. The first refresh fills this in.</div>';
+  const h = a.history || {dates: []};
+  d.innerHTML = `
+  <article class="glass card rise">
+    <div class="hd"><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]};width:40px;height:40px;font-size:14px">${initials(a.name)}</span><div><h3 style="font-size:18px">${esc(a.name)}</h3><p class="sub">${esc(a.domain)} · ${a.github_org ? 'github.com/' + esc(a.github_org) : 'no GitHub org'} · ${a.ats ? esc(a.ats) : 'no job board'} · refreshed ${ago(a.last_refreshed)}</p></div>
+      <span class="end"><span class="pill ${a.tier}">Tier ${a.tier}</span>${isLive ? `<button class="btn" id="refreshBtn">Refresh now</button>` : ''}</span></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${flags}</div>
+    <div class="toolbar"><span class="sub">Opening line for</span><select id="persona" aria-label="Persona">${['VP Engineering', 'Platform Lead', 'DevOps Manager', 'Staff Engineer'].map(p => `<option ${p === a.persona ? 'selected' : ''}>${p}</option>`).join('')}</select>${b.hook ? `<span class="pill hook">${esc(b.hook.replace('_', ' '))}</span>` : ''}</div>
+    ${b.opener ? `<div class="opener" id="openerBox"><span id="openerText">${esc(b.opener)}</span>${citeHTML(b.cites)}</div>
+      <div class="toolbar"><button class="btn ok" data-fb="used_as_is">Use as is</button><button class="btn" id="editBtn">Edit</button><button class="btn" id="copyBtn">Copy</button><button class="btn bad" data-fb="rejected">Reject</button></div>`
+      : `<div class="empty"><b>No opener generated.</b> There is not enough verified public signal to say something specific and true. Ask instead:<ol>${(b.discovery || []).map(q => `<li>${esc(q)}</li>`).join('')}</ol></div>`}
+    <div class="summary">${summary}</div>
+    ${b.opener && (b.discovery || []).length ? `<div><span class="sub">Still ask on the call</span><ol style="margin:6px 0 0;padding-left:18px;color:var(--ink-2)">${b.discovery.map(q => `<li>${esc(q)}</li>`).join('')}</ol></div>` : ''}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${langs}</div>
+  </article>
+  <article class="glass card rise" style="animation-delay:.08s">
+    <div class="mini">
+      <div class="m"><span>CI median${a.ci_repo ? ' · ' + esc(a.ci_repo.split('/')[1] || '') : ''}</span><b>${a.ci != null ? a.ci + ' min' : '—'}</b><svg class="spark" data-s="ci" viewBox="0 0 200 46" preserveAspectRatio="none" style="width:100%;height:36px"></svg></div>
+      <div class="m"><span>Open eng roles</span><b>${a.eng_roles ?? '—'}</b><svg class="spark" data-s="eng" viewBox="0 0 200 46" preserveAspectRatio="none" style="width:100%;height:36px"></svg></div>
+      <div class="m"><span>Platform roles</span><b>${a.platform_roles ?? '—'}</b><svg class="spark" data-s="plat" viewBox="0 0 200 46" preserveAspectRatio="none" style="width:100%;height:36px"></svg></div>
+      <div class="m"><span>ICP fit · why now</span><b>${a.icp.toFixed(2)} · ${a.why_now.toFixed(2)}</b></div>
+    </div>
+    ${(a.diff || []).length ? `<div class="toolbar">${a.diff.map(x => `<span class="pill hook">${esc(x)}</span>`).join('')}</div>` : ''}
+    <div class="hd"><h3>Evidence ledger</h3><span class="end"><span class="sub">${a.signals.length} facts · hover a citation to jump</span></span></div>
+    <div class="facts">${facts}</div>
+  </article>`;
+  [['ci', h.ci, '#22D3EE'], ['eng', h.eng, '#8B5CF6'], ['plat', h.plat, '#FB923C']].forEach(([k, v, c]) => spark($(`svg[data-s="${k}"]`, d), v || [], c));
+  $$('.cite', d).forEach(c => { const go2 = () => { const f = $('#fact-' + CSS.escape(c.dataset.fid)); if (f) { f.scrollIntoView({behavior: reduce ? 'auto' : 'smooth', block: 'center'}); f.classList.remove('flash'); void f.offsetWidth; f.classList.add('flash'); } }; c.onclick = go2; c.onkeydown = e => e.key === 'Enter' && go2(); const f = a.signals.find(s => s.fid === c.dataset.fid); if (f) c.title = `${f.tech}: “${f.quote}”`; });
+  const copy = () => { const t = $('#openerText')?.textContent || ''; navigator.clipboard?.writeText(t).then(() => toast('Opener copied'), () => toast('Select the text to copy it')); };
+  $('#copyBtn') && ($('#copyBtn').onclick = copy);
+  $$('[data-fb]', d).forEach(bn => bn.onclick = () => sendFeedback(a, bn.dataset.fb));
+  $('#editBtn') && ($('#editBtn').onclick = () => { const box = $('#openerBox'); const cur = $('#openerText').textContent; box.innerHTML = `<textarea id="openerEdit" aria-label="Edit opener">${esc(cur)}</textarea><div class="toolbar" style="margin-top:8px"><button class="btn primary" id="saveEdit">Save edit</button><button class="btn" id="cancelEdit">Cancel</button></div>`; $('#cancelEdit').onclick = () => renderDetail(a); $('#saveEdit').onclick = () => { const v = $('#openerEdit').value.trim(); sendFeedback(a, 'edited_tone', v); a.brief.opener = v; renderDetail(a); }; });
+  $('#persona').onchange = async e => { if (!isLive) { toast('Persona saved for the next refresh (sample mode)'); return; } try { await rest(`watchlist?id=eq.${a.id}`, {method: 'PATCH', body: JSON.stringify({persona: e.target.value}), headers: {Prefer: 'return=minimal'}}); a.persona = e.target.value; toast('Saved. Refresh to rewrite the opener for a ' + e.target.value); } catch (err) { toast('Could not save: ' + err.message); } };
+  $('#refreshBtn') && ($('#refreshBtn').onclick = () => refreshAccount(a));
+  $$('[data-wrong]', d).forEach(bn => bn.onclick = async () => { try { await rest('overrides', {method: 'POST', body: JSON.stringify({account_id: a.id, tech: bn.dataset.wrong, forced_state: 'noise', note: 'Marked wrong by AE'}), headers: {Prefer: 'resolution=merge-duplicates,return=minimal'}}); await sendFeedback(a, 'edited_fact', null, true); toast(`${bn.dataset.wrong} will be ignored for ${a.name} from the next refresh on`); bn.disabled = true; } catch (err) { toast('Could not save: ' + err.message); } });
+}
+async function sendFeedback(a, action, edited = null, silent = false) {
+  if (M.mode !== 'live') { if (!silent) toast(`Recorded “${action.replace(/_/g, ' ')}” (sample mode, not saved)`); return; }
+  try { await rest('feedback', {method: 'POST', body: JSON.stringify({brief_id: a.brief?.id || null, account_id: a.id, action, edited_opener: edited}), headers: {Prefer: 'return=minimal'}}); if (!silent) toast(`Saved: ${action.replace(/_/g, ' ')}`); }
+  catch (err) { toast('Could not save feedback: ' + err.message); }
+}
+async function refreshAccount(a) {
+  if (M.mode !== 'live') { toast('Refresh runs on the live deployment'); return; }
+  a.status = 'running'; render();
+  try {
+    const r = await fetch(CFG.url + '/functions/v1/scout-refresh', {method: 'POST', headers: {...H()}, body: JSON.stringify({account_id: a.id, trigger: 'manual'})});
+    const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status);
+    toast(j.skipped ? 'Already fresh: ' + j.skipped : `${a.name} refreshed · ${j.facts} facts · ${j.material ? 'new brief' : 'no material change'}`);
+  } catch (err) { toast('Refresh failed: ' + err.message); }
+  load();
+}
+
+/* ---------- watchlist ---------- */
+function renderWatchlist() {
+  const A = M.accounts; $('#wlSub').textContent = `${act().length} active · edits here write to the Supabase table watchlist`;
+  const st = a => a.status === 'running' || a.status === 'queued' ? `<span class="status"><span class="spin"></span>${a.status}</span>` : a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">error</span>` : `<span class="pill ok">ok</span>`;
+  $('#wlTable tbody').innerHTML = A.map(a => `<tr><td><b style="color:#EEEDFF">${esc(a.name)}</b><div class="sub">${esc(a.domain)}</div></td><td>${a.github_org ? `<a style="color:var(--cyan)" href="https://github.com/${esc(a.github_org)}" target="_blank" rel="noopener">${esc(a.github_org)}</a>` : '—'}</td><td>${esc(a.ats || '—')}</td><td>${a.blog ? '<span class="pill ok">found</span>' : '—'}</td><td>${esc(a.persona)}</td><td>${a.active === false ? '<span class="pill">removed</span>' : st(a)}</td><td>${ago(a.last_refreshed)}</td><td>${a.active === false ? `<button class="btn" data-restore="${a.id}">Restore</button>` : `<button class="btn bad" data-remove="${a.id}">Remove</button>`}</td></tr>`).join('');
+  $$('[data-remove]').forEach(b => b.onclick = () => setActive(b.dataset.remove, false));
+  $$('[data-restore]').forEach(b => b.onclick = () => setActive(b.dataset.restore, true));
+}
+async function setActive(id, on) {
+  const a = M.accounts.find(x => x.id === id); if (M.mode !== 'live') { a.active = on; render(); toast((on ? 'Restored ' : 'Removed ') + a.name + ' (sample mode)'); return; }
+  try { await rest(`watchlist?id=eq.${id}`, {method: 'PATCH', body: JSON.stringify({active: on}), headers: {Prefer: 'return=minimal'}}); toast((on ? 'Restored ' : 'Removed ') + a.name); load(); } catch (e) { toast('Could not update: ' + e.message); }
+}
+$('#addForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = $('#fName').value.trim(), domain = $('#fDomain').value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '').toLowerCase();
+  if (!name || !domain.includes('.')) { toast('Enter a company name and a domain like posthog.com'); return; }
+  if (M.mode !== 'live') { M.accounts.push({id: 'tmp' + Date.now(), name, domain, persona: $('#fPersona').value, stage: $('#fStage').value, active: true, status: 'queued', tier: 'C', icp: 0, why_now: 0, languages: {}, signals: [], brief: null, history: {dates: []}, diff: []}); render(); toast(`${name} added (sample mode: not researched)`); e.target.reset(); return; }
+  $('#addBtn').disabled = true;
+  try { await rest('watchlist', {method: 'POST', body: JSON.stringify({name, domain, persona: $('#fPersona').value, stage: $('#fStage').value}), headers: {Prefer: 'return=minimal'}}); toast(`${name} added. Research starts now; it takes about a minute.`); e.target.reset(); load(); }
+  catch (err) { toast(err.message.includes('duplicate') ? 'That domain is already on the watchlist' : 'Could not add: ' + err.message); }
+  $('#addBtn').disabled = false;
+});
+
+/* ---------- signals ---------- */
+function kpiCards(target, items) { $(target).innerHTML = items.map((k, i) => `<article class="glass card rise" style="animation-delay:${i * .06}s"><div class="hd"><h3>${k.l}</h3></div><div class="big">${k.v}</div><p class="sub">${k.d}</p></article>`).join(''); }
+function renderSignals() {
+  const S = allSignals();
+  kpiCards('#sigKpis', [
+    {l: 'Facts in the ledger', v: S.length, d: 'each with a source URL and verbatim quote'},
+    {l: 'Hedged or migrating', v: S.filter(s => /migrating|hiring_only|emerging|contested/.test(s.state)).length, d: 'written with hedged phrasing, never stated as fact'},
+    {l: 'Noise filtered', v: S.filter(s => s.state === 'noise').length, d: 'e.g. “AWS, GCP or Azure” in a requirements list'},
+  ]);
+  const cats = ['language', 'cloud', 'orchestration', 'ci', 'build', 'infra', 'data', 'observability'], srcs = ['github', 'job_post', 'blog', 'dns'];
+  const n = (c, s) => S.filter(x => x.category === c && x.source === s && x.state !== 'noise').length;
+  const mx = Math.max(1, ...cats.flatMap(c => srcs.map(s => n(c, s))));
+  $('#matrix').innerHTML = `<table><thead><tr><th>Claim</th>${srcs.map(s => `<th class="num">${s.replace('_', ' ')}</th>`).join('')}</tr></thead><tbody>${cats.filter(c => srcs.some(s => n(c, s))).map(c => `<tr><td>${c}</td>${srcs.map(s => { const v = n(c, s); return `<td class="num" style="background:rgba(139,92,246,${(v / mx * .5).toFixed(2)});color:#EEEDFF">${v || '·'}</td>`; }).join('')}</tr>`).join('')}</tbody></table>`;
+  const svg = $('#states'); clear(svg); const order = [['active', '#4ADE80'], ['hiring_only', '#FACC15'], ['emerging', '#FB923C'], ['migrating_to', '#F472B6'], ['migrating_from', '#F87171'], ['noise', '#8580B0']];
+  const rows = order.map(([k, c]) => ({k, c, v: S.filter(s => s.state === k).length})).filter(r => r.v); const m2 = Math.max(1, ...rows.map(r => r.v));
+  rows.forEach((r, i) => { const y = 14 + i * 36; el('text', {x: 110, y: y + 15, 'text-anchor': 'end', 'font-size': 12, fill: '#B9B5E0'}, svg, r.k.replace('_', ' ')); const b = el('rect', {x: 120, y: y + 2, width: Math.max(4, r.v / m2 * 250), height: 18, rx: 6, fill: r.c, 'fill-opacity': .8}, svg); if (!reduce) { b.style.transformOrigin = '120px 0'; b.style.transform = 'scaleX(0)'; b.style.transition = `transform .9s cubic-bezier(.2,.8,.2,1) ${i * .06}s`; requestAnimationFrame(() => requestAnimationFrame(() => b.style.transform = 'scaleX(1)')); } el('text', {x: 128 + r.v / m2 * 250, y: y + 16, 'font-size': 12, 'font-weight': 700, fill: '#EEEDFF'}, svg, r.v); });
+  const issues = act().flatMap(a => { const r = []; if (a.github_org && a.mapping_confidence < .8) r.push([a, 'Entity mapping', `GitHub org match ${a.mapping_confidence.toFixed(2)}: confirm it is really ${a.name}`, 'bad']); if (!a.github_org && !a.ats) r.push([a, 'Zero signal', 'No GitHub org or job board found; no opener is generated', 'bad']); if (a.signals.some(s => s.state.includes('migrating'))) r.push([a, 'Migration in flight', 'Hedge the phrasing; this is likely the best hook', 'warn']); if (a.brief?.fallback) r.push([a, 'Template fallback', 'Gemini draft failed verification twice; safe template used', 'warn']); if (a.status === 'error') r.push([a, 'Refresh failed', a.error || 'see run log', 'bad']); return r; });
+  $('#review').innerHTML = issues.length ? `<table><thead><tr><th>Company</th><th>Issue</th><th>What to do</th></tr></thead><tbody>${issues.map(([a, t, d, c]) => `<tr class="click" data-id="${a.id}"><td><b style="color:#EEEDFF">${esc(a.name)}</b></td><td><span class="pill ${c}">${t}</span></td><td style="white-space:normal">${esc(d)}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nothing needs a human right now.</div>';
+  $$('#review tr[data-id]').forEach(tr => tr.onclick = () => { selId = tr.dataset.id; go('accounts'); });
+}
+
+/* ---------- pipeline ---------- */
+function renderPipeline() {
+  const isLive = M.mode === 'live';
+  if (isLive) {
+    const R = M.runs, ok = R.filter(r => r.status === 'ok'), dur = ok.map(r => r.duration_ms / 1000).filter(Boolean);
+    kpiCards('#pipeKpis', [
+      {l: 'Refresh runs', v: R.length, d: `${ok.length} ok · ${R.filter(r => r.status === 'error').length} failed · ${R.filter(r => r.status === 'running').length} running`},
+      {l: 'Median run time', v: dur.length ? Math.round(dur.sort((a, b) => a - b)[Math.floor(dur.length / 2)]) + ' s' : '—', d: `${R.reduce((s, r) => s + (r.github_calls || 0), 0)} GitHub calls · ${R.reduce((s, r) => s + (r.gemini_calls || 0), 0)} Gemini calls`},
+      {l: 'Verifier outcomes', v: `${ok.filter(r => r.verifier_failed).length} / ${ok.filter(r => r.material).length}`, d: `drafts failing first check · ${ok.filter(r => r.repaired).length} repaired · ${ok.filter(r => r.used_fallback).length} template fallbacks`},
+    ]);
+    const svg = $('#runChart'); clear(svg); const rr = R.slice(0, 24).reverse(); const mx = Math.max(10, ...rr.map(r => (r.duration_ms || 0) / 1000));
+    $('#runChartTitle').textContent = 'Last refresh runs (seconds)';
+    rr.forEach((r, i) => { const w = 600 / Math.max(rr.length, 1), h = (r.duration_ms || 0) / 1000 / mx * 200, x = 30 + i * w; const c = r.status === 'ok' ? (r.material ? '#8B5CF6' : '#3B82F6') : r.status === 'error' ? '#F87171' : '#FACC15'; const b = el('rect', {x: x + w * .2, y: 225 - h, width: w * .6, height: Math.max(h, 2), rx: 4, fill: c, class: 'grow', style: `animation-delay:${i * .03}s`}, svg); el('title', {}, b, `${r.account} · ${r.status} · ${Math.round((r.duration_ms || 0) / 1000)} s · ${r.material ? 'new brief' : 'no change'}`); });
+    el('line', {x1: 30, x2: 630, y1: 225, y2: 225, stroke: 'rgba(255,255,255,.15)'}, svg);
+    el('text', {x: 30, y: 248, 'font-size': 11, fill: '#8580B0'}, svg, 'violet = new brief written · blue = no material change · red = failed');
+    $('#runLog').innerHTML = `<table><thead><tr><th>Started</th><th>Account</th><th>Trigger</th><th>Status</th><th class="num">Time</th><th class="num">GitHub</th><th class="num">Gemini</th><th>Brief</th></tr></thead><tbody>${R.slice(0, 40).map(r => `<tr><td>${new Date(r.started_at).toLocaleString('en-GB', {day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'})}</td><td>${esc(r.account)}</td><td>${esc(r.trigger)}</td><td>${r.status === 'ok' ? '<span class="pill ok">ok</span>' : r.status === 'error' ? `<span class="pill bad" title="${esc(r.error)}">error</span>` : '<span class="status"><span class="spin"></span>running</span>'}</td><td class="num">${r.duration_ms ? Math.round(r.duration_ms / 1000) + ' s' : '—'}</td><td class="num">${r.github_calls ?? 0}</td><td class="num">${r.gemini_calls ?? 0}</td><td>${r.material ? (r.used_fallback ? '<span class="pill warn">template</span>' : r.repaired ? '<span class="pill warn">repaired</span>' : '<span class="pill ok">written</span>') : '<span class="sub">unchanged</span>'}</td></tr>`).join('')}</tbody></table>`;
+  } else {
+    const W = M.weekly, lw = last(W);
+    kpiCards('#pipeKpis', [
+      {l: 'Last weekly run', v: Math.round(lw.duration / 60) + ' min', d: `${lw.accounts} accounts · ${lw.failed} failed and isolated`},
+      {l: 'Verifier fail rate', v: pct(lw.verifier_fail), d: `down from ${pct(W[0].verifier_fail)} in week 1`},
+      {l: 'Gemini cost per run', v: '$' + lw.cost.toFixed(2), d: `${lw.gem} calls · content-hash cache does the rest`},
+    ]);
+    const svg = $('#runChart'); clear(svg); $('#runChartTitle').textContent = 'Material changes per weekly run';
+    const mx = Math.max(...W.map(w => w.accounts));
+    W.forEach((w, i) => { const x = 30 + i * 50, h1 = w.accounts / mx * 190, h2 = w.material / mx * 190; el('rect', {x: x + 8, y: 225 - h1, width: 30, height: h1, rx: 6, fill: '#3B82F6', 'fill-opacity': .35, class: 'grow', style: `animation-delay:${i * .04}s`}, svg); const b = el('rect', {x: x + 8, y: 225 - h2, width: 30, height: h2, rx: 6, fill: '#8B5CF6', class: 'grow', style: `animation-delay:${.2 + i * .04}s`}, svg); el('title', {}, b, `${fmtDate(w.week)}: ${w.material} of ${w.accounts} changed`); el('text', {x: x + 23, y: 244, 'text-anchor': 'middle', 'font-size': 10.5, fill: '#8580B0'}, svg, fmtDate(w.week)); });
+    $('#runLog').innerHTML = `<table><thead><tr><th>Week</th><th class="num">Accounts</th><th class="num">Changed</th><th class="num">Failed</th><th class="num">Verifier</th><th class="num">Cost</th></tr></thead><tbody>${[...W].reverse().map(w => `<tr><td>${fmtDate(w.week)}</td><td class="num">${w.accounts}</td><td class="num">${w.material}</td><td class="num">${w.failed}</td><td class="num">${pct(w.verifier_fail)}</td><td class="num">$${w.cost.toFixed(2)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const ev = (M.events || []).filter(e => e.detail !== 'First snapshot');
+  $('#feed').innerHTML = ev.length ? ev.slice(0, 14).map(e => `<div class="ev"><i></i><span><b style="color:#EEEDFF">${esc(e.account)}</b> · ${esc(e.detail)}</span><span class="sub">${fmtDate(e.at)}</span></div>`).join('') : '<div class="empty">No material changes yet. Changes appear here from the second weekly snapshot on.</div>';
+}
+
+/* ---------- prompt chain diagram ---------- */
+function renderChain() {
+  const s = $('#chain'); if (s.childNodes.length) return;
+  const steps = [['Collect', 'GitHub · ATS · RSS', '#3B82F6'], ['P1 Extract', 'Gemini Flash', '#8B5CF6'], ['Quote check', 'code', '#2DD4BF'], ['Fuse + score', 'ledger · tiers · why-now', '#22D3EE'], ['P2 Write', 'Gemini Flash', '#8B5CF6'], ['Verify', 'closed vocabulary', '#2DD4BF'], ['P3 Repair', 'once, then template', '#F472B6']];
+  const defs = el('defs', {}, s); const m = el('marker', {id: 'ar', viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 6, markerHeight: 6, orient: 'auto'}, defs); el('path', {d: 'M0 0L10 5L0 10z', fill: '#8580B0'}, m);
+  steps.forEach(([t, d, c], i) => { const x = 10 + i * 127; const g = el('g', {class: 'rise', style: `animation-delay:${i * .08}s`}, s); el('rect', {x, y: 60, width: 112, height: 70, rx: 14, fill: c, 'fill-opacity': .14, stroke: c, 'stroke-opacity': .6}, g); el('text', {x: x + 56, y: 90, 'text-anchor': 'middle', 'font-size': 13, 'font-weight': 700, fill: '#EEEDFF'}, g, t); el('text', {x: x + 56, y: 110, 'text-anchor': 'middle', 'font-size': 10.5, fill: '#B9B5E0'}, g, d); if (i < steps.length - 1) el('path', {d: `M${x + 114} 95 H${x + 125}`, stroke: '#8580B0', 'stroke-width': 1.5, 'marker-end': 'url(#ar)'}, s); });
+  el('path', {d: 'M833 132 V170 H581 V134', fill: 'none', stroke: '#F472B6', 'stroke-width': 1.3, class: 'flowing', 'marker-end': 'url(#ar)'}, s);
+  el('text', {x: 707, y: 190, 'text-anchor': 'middle', 'font-size': 11, fill: '#B9B5E0'}, s, 'failed checks go back once as an error list');
+  el('text', {x: 10, y: 34, 'font-size': 13, fill: '#B9B5E0'}, s, 'Code decides what is true; Gemini only extracts and phrases. Unchanged accounts skip P2 entirely.');
+}
+function renderAbout() {
+  $('#aboutText').innerHTML = `<p><b style="color:#EEEDFF">What it does.</b> For every company on the watchlist, Tech Stack Scout reads public GitHub repos (languages, build and CI files, real GitHub Actions run times), public job boards (Greenhouse, Ashby, Lever) and the engineering blog feed. It stores each finding as a fact with a source link and a verbatim quote.</p>
+  <p><b style="color:#EEEDFF">How the copy stays true.</b> Gemini Flash writes the two-paragraph summary and the opening line from a numbered fact sheet only. Every sentence must cite fact IDs. Code then rejects any technology, number or phrase that the facts do not support, asks Gemini to repair once, and otherwise falls back to a plain template.</p>
+  <p><b style="color:#EEEDFF">When it runs.</b> Every Monday at 08:47 IST (Supabase pg_cron), and within a minute of adding a company. Accounts with no material change keep last week's brief and raise no alert.</p>
+  <p><b style="color:#EEEDFF">Your feedback.</b> “Use as is”, edits and rejects are stored. “Mark wrong” on a fact creates a sticky override, so next week's refresh will not bring it back.</p>`;
+}
+
+/* ---------- routing ---------- */
+function go(v) { view = v; $$('.nav').forEach(n => { if (n.dataset.view === v) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); }); $$('.view').forEach(s => s.hidden = s.dataset.v !== v); $('#side').classList.remove('open'); render(); try { history.replaceState(null, '', '#' + v); } catch (e) {} window.scrollTo({top: 0}); }
+function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); $('#navCount').textContent = act().length; }
+$$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
+document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
+$('#burger').onclick = () => $('#side').classList.toggle('open');
+$('#q').addEventListener('input', () => { if (view !== 'accounts') go('accounts'); else renderAccounts(); });
+['#fTier', '#fSort'].forEach(s => $(s).addEventListener('change', renderAccounts));
+document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#q').focus(); } });
+$('#exportBtn').onclick = () => { const a = [...act()].sort((x, y) => y.why_now * y.icp - x.why_now * x.icp)[0]; if (!a?.brief) { toast('No brief yet'); return; } const txt = `${a.name}\n\n${(a.brief.summary || []).map(p => p.map(s => s.text).join(' ')).join('\n\n')}\n\nOpener: ${a.brief.opener || '—'}`; navigator.clipboard?.writeText(txt).then(() => toast(`Copied ${a.name}'s brief`), () => toast('Clipboard is blocked here')); };
+
+/* ---------- starfield ---------- */
+(function stars() {
+  const c = $('#stars'), x = c.getContext('2d'); let W, Hh, P;
+  const size = () => { W = c.width = innerWidth * devicePixelRatio; Hh = c.height = innerHeight * devicePixelRatio; P = Array.from({length: Math.round(innerWidth * innerHeight / 9000)}, () => ({x: Math.random() * W, y: Math.random() * Hh, r: Math.random() * 1.4 + .3, v: Math.random() * .15 + .03, h: Math.random() < .2 ? (Math.random() < .5 ? '#22D3EE' : '#F472B6') : '#C7C9FF', a: Math.random()})); };
+  size(); addEventListener('resize', size);
+  const tick = () => { x.clearRect(0, 0, W, Hh); for (const p of P) { p.y -= p.v * devicePixelRatio; p.a += .01; if (p.y < 0) { p.y = Hh; p.x = Math.random() * W; } x.globalAlpha = .35 + .35 * Math.sin(p.a); x.fillStyle = p.h; x.beginPath(); x.arc(p.x, p.y, p.r * devicePixelRatio, 0, 7); x.fill(); } if (!reduce) requestAnimationFrame(tick); };
+  tick();
+})();
+
+const start = (location.hash || '').slice(1); if (['dashboard', 'accounts', 'watchlist', 'signals', 'pipeline', 'prompts', 'about'].includes(start)) view = start;
+$$('.view').forEach(s => s.hidden = s.dataset.v !== view); $$('.nav').forEach(n => { if (n.dataset.view === view) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
+load();
+
+</script>
+</body>
+</html>
