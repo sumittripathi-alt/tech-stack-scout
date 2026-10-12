@@ -202,6 +202,21 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
 .chk .cev{background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);border-radius:10px;padding:8px 10px}
 .chk details summary{cursor:pointer;color:#D9CCFF;font-size:13px;font-weight:600;margin-top:4px}
 .chk details[open] summary{margin-bottom:8px}
+.robanner{margin:0 0 12px;padding:10px 14px;border-radius:12px;border:1px solid rgba(250,204,21,.35);background:rgba(250,204,21,.08);color:#FDE9A6;font-size:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.robanner[hidden]{display:none}
+.modal{position:fixed;inset:0;z-index:80;background:rgba(5,3,20,.65);backdrop-filter:blur(4px);display:grid;place-items:center;padding:16px;animation:nin .2s ease both}
+.mcard{position:relative;width:min(420px,100%);padding:22px 22px 20px;border-radius:16px;background:#1A1640!important;border:1px solid var(--line-2);box-shadow:0 24px 70px rgba(0,0,0,.6);max-height:92vh;overflow:auto}
+.mcard.wide{width:min(620px,100%)}
+.mcard h3{margin:0 0 6px;font-size:18px;color:#EEEDFF}
+.mcard .nx{position:absolute;top:10px;right:12px;background:none;border:0;color:var(--ink-2);font-size:22px;cursor:pointer}
+.mcard .seg{display:flex;gap:6px;margin:12px 0 4px}.mcard .seg .btn[aria-pressed=true]{border-color:rgba(139,92,246,.6);color:#fff;background:rgba(139,92,246,.2)}
+.mform{display:grid;gap:12px;margin-top:12px}.mform label{display:grid;gap:5px;font-size:12.5px;color:var(--ink-2)}
+.mform input,.mform textarea{width:100%;background:rgba(8,6,24,.5);border:1px solid var(--line-2);border-radius:10px;color:var(--ink);font:14px var(--f);padding:9px 11px}
+.mform textarea{resize:vertical;line-height:1.5}
+.mmsg{min-height:18px;font-size:13px;color:#BFE9D2}.mmsg.bad{color:#FFB4B4}
+.okpis{display:flex;gap:26px;flex-wrap:wrap;margin:6px 0 12px}.okpis div{display:flex;flex-direction:column}.okpis b{font-size:26px;color:#EEEDFF}.okpis span{font-size:12px;color:var(--muted)}
+.out-act{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.user .btn{margin-left:8px}
 .toast{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:50;padding:12px 16px;border-radius:12px;background:#1C1840;border:1px solid var(--line-2);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px;transform:translateY(20px);opacity:0;transition:all .3s;max-width:calc(100% - 36px)}
 .toast.show{transform:none;opacity:1}
 .pill.manual{color:#CFF7E4;border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.14)}
@@ -303,8 +318,9 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
       <span class="ws" id="wsToggle" role="group" aria-label="Workspace" hidden><button type="button" data-ws="live" aria-pressed="true">Live</button><button type="button" data-ws="demo" aria-pressed="false">Demo</button></span>
       <span class="chip"><span class="eq"><i></i><i></i><i></i><i></i><i></i></span><span id="streamLabel">Data streaming</span></span>
       <span class="chip live" id="modeChip"><span class="dot"></span><span id="modeLabel">Live system health</span></span>
-      <span class="user"><span class="avatar">NK</span><span class="who"><b>Nikhil</b><span>Enterprise AE</span></span></span>
+      <span class="user" id="userBox"><span class="avatar">NK</span><span class="who"><b>Nikhil</b><span>Enterprise AE</span></span></span>
     </header>
+    <div class="robanner" id="roBanner" hidden></div>
 
     <!-- DASHBOARD -->
     <section data-v="dashboard" class="view grid">
@@ -338,6 +354,8 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
           <div class="kpi"><div><div class="big" id="callBig">0</div><p class="sub" id="callSub">&nbsp;</p></div><svg class="spark" id="spark3" viewBox="0 0 200 46" preserveAspectRatio="none"></svg></div>
         </article>
       </div>
+
+      <article class="glass card rise" id="outCard" hidden></article>
 
       <div class="grid r2">
         <article class="glass card rise" style="animation-delay:.26s">
@@ -517,8 +535,168 @@ const qsWs = new URLSearchParams(location.search).get('workspace');
 let WS = qsWs === 'demo' || qsWs === 'live' ? qsWs : (() => { try { return localStorage.getItem('scout.ws') || 'live'; } catch (e) { return 'live'; } })();
 const isDemoWs = () => WS === 'demo';
 const live = !!(CFG.url && CFG.key);
-const H = () => ({apikey: CFG.key, Authorization: 'Bearer ' + CFG.key, 'Content-Type': 'application/json'});
-async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1/' + path, {...opts, headers: {...H(), ...(opts.headers || {})}}); if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 160)); const t = await r.text(); try { return t ? JSON.parse(t) : null; } catch (e) { return t; } }
+/* ---------- sign-in, team list, outreach tracking, email ---------- */
+const AUTH = {s: null, me: null, team: []};
+try { AUTH.s = JSON.parse(localStorage.getItem('scout.session') || 'null'); } catch (e) { AUTH.s = null; }
+function saveSession(s) { AUTH.s = s; try { s ? localStorage.setItem('scout.session', JSON.stringify(s)) : localStorage.removeItem('scout.session'); } catch (e) {} }
+async function authCall(path, body) {
+  const r = await fetch(CFG.url + '/auth/v1/' + path, {method: 'POST', headers: {apikey: CFG.key, 'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.msg || j.error_description || j.message || ('Sign-in failed (' + r.status + ')'));
+  return j;
+}
+function keepSession(j) { saveSession({access_token: j.access_token, refresh_token: j.refresh_token, expires_at: j.expires_at || Math.floor(Date.now() / 1000) + (j.expires_in || 3600), email: j.user?.email || AUTH.s?.email}); }
+async function refreshSession(force) {
+  const s = AUTH.s; if (!s || !live) return;
+  if (!force && s.expires_at - Date.now() / 1000 > 300) return;
+  try { keepSession(await authCall('token?grant_type=refresh_token', {refresh_token: s.refresh_token})); }
+  catch (e) { if (/invalid|expired|not found|already used|revoked/i.test(e.message)) { saveSession(null); AUTH.me = null; renderUser(); } }
+}
+async function loadMe() {
+  AUTH.me = null; AUTH.team = [];
+  if (AUTH.s) { try { AUTH.me = await rest('rpc/me', {method: 'POST', body: '{}'}); } catch (e) {} }
+  if (AUTH.me) { try { AUTH.team = await rest('team_members?select=email,name,role,active&order=created_at'); } catch (e) {} }
+  renderUser();
+}
+function renderUser() {
+  const box = $('#userBox'), ro = $('#roBanner'); if (!box) return;
+  if (!live) { box.innerHTML = '<span class="avatar">NK</span><span class="who"><b>Nikhil</b><span>Enterprise AE</span></span>'; if (ro) ro.hidden = true; return; }
+  const nm = AUTH.me ? (AUTH.me.name || AUTH.me.email) : '';
+  if (!AUTH.s) box.innerHTML = '<button class="btn primary" id="signInBtn">Sign in</button>';
+  else if (!AUTH.me) box.innerHTML = `<span class="avatar" style="background:#4B4A66">?</span><span class="who"><b>${esc(AUTH.s.email || 'Signed in')}</b><span>Not on the team list</span></span><button class="btn" id="signOutBtn">Sign out</button>`;
+  else box.innerHTML = `<span class="avatar">${esc(initials(nm))}</span><span class="who"><b>${esc(nm)}</b><span>${AUTH.me.role === 'admin' ? 'Admin' : 'Account executive'}</span></span><button class="btn" id="signOutBtn">Sign out</button>`;
+  $('#signInBtn') && ($('#signInBtn').onclick = () => openAuth('in'));
+  $('#signOutBtn') && ($('#signOutBtn').onclick = signOut);
+  if (ro) {
+    ro.hidden = !!AUTH.me;
+    ro.innerHTML = !AUTH.s ? 'You are viewing read-only. <button class="btn" id="roIn">Sign in</button> to add companies, change settings or send email.' : `Signed in as <b>${esc(AUTH.s.email || '')}</b>, but that email is not on the team list, so you are read-only. Ask an admin to add it.`;
+    $('#roIn') && ($('#roIn').onclick = () => openAuth('in'));
+  }
+}
+async function signOut() {
+  try { await fetch(CFG.url + '/auth/v1/logout', {method: 'POST', headers: H()}); } catch (e) {}
+  saveSession(null); AUTH.me = null; AUTH.team = []; renderUser(); toast('Signed out'); load();
+}
+function closeModal(id) { const m = $('#' + id); if (m) m.remove(); }
+function modal(id, html, wide) {
+  closeModal(id); const m = document.createElement('div'); m.id = id; m.className = 'modal';
+  m.innerHTML = `<div class="mcard glass${wide ? ' wide' : ''}" role="dialog" aria-modal="true">${html}</div>`;
+  m.addEventListener('mousedown', e => { if (e.target === m) m.remove(); });
+  m.addEventListener('keydown', e => { if (e.key === 'Escape') m.remove(); });
+  document.body.appendChild(m); return m;
+}
+function openAuth(mode = 'in') {
+  let mo = mode;
+  const m = modal('authModal', `<button class="nx" data-x aria-label="Close">×</button><h3 id="amT"></h3><p class="sub">Anyone can read. Only people on the team list can add companies, change settings or send email.</p>
+    <div class="seg"><button class="btn" type="button" data-m="in">Sign in</button><button class="btn" type="button" data-m="up">Create account</button></div>
+    <form id="amF" class="mform"><label>Email<input id="amE" type="email" required autocomplete="email"></label><label>Password<input id="amP" type="password" required minlength="8" autocomplete="current-password" placeholder="At least 8 characters"></label><div id="amMsg" class="mmsg" role="status"></div><button class="btn primary" id="amGo" type="submit"></button></form>
+    <p class="sub" id="amNote"></p>`);
+  const set = x => { mo = x; $('#amT', m).textContent = x === 'in' ? 'Sign in' : 'Create an account'; $('#amGo', m).textContent = x === 'in' ? 'Sign in' : 'Create account'; $('#amP', m).autocomplete = x === 'in' ? 'current-password' : 'new-password'; $$('[data-m]', m).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === x))); $('#amNote', m).textContent = x === 'up' ? 'Use the email an admin put on the team list. You may need to confirm it from your inbox first.' : ''; $('#amMsg', m).textContent = ''; };
+  $$('[data-m]', m).forEach(b => b.onclick = () => set(b.dataset.m)); $('[data-x]', m).onclick = () => m.remove(); set(mo);
+  $('#amF', m).onsubmit = async e => {
+    e.preventDefault(); const em = $('#amE', m).value.trim(), pw = $('#amP', m).value, msg = $('#amMsg', m), go = $('#amGo', m); go.disabled = true; msg.textContent = '';
+    try {
+      const j = await authCall(mo === 'in' ? 'token?grant_type=password' : 'signup', {email: em, password: pw});
+      if (!j.access_token) { msg.textContent = 'Account created. Check your inbox to confirm the email, then sign in.'; set('in'); $('#amMsg', m).textContent = 'Account created. Check your inbox to confirm the email, then sign in.'; go.disabled = false; return; }
+      keepSession(j); m.remove(); await loadMe();
+      toast(AUTH.me ? `Signed in as ${AUTH.me.name || AUTH.me.email}` : 'Signed in, but your email is not on the team list yet, so you can read but not change.'); load();
+    } catch (err) { msg.textContent = err.message; go.disabled = false; }
+  };
+  setTimeout(() => $('#amE', m).focus(), 30);
+}
+
+/* ---------- outreach: log, status, stats ---------- */
+const OUT_LABEL = {sent: ['Sent', 'pill'], replied: ['Replied', 'pill ok'], meeting: ['Meeting booked', 'pill ok'], no_reply: ['No reply', 'pill warn']};
+const OUT_BTN = {replied: 'Got a reply', meeting: 'Meeting booked', no_reply: 'No reply'};
+async function loadOutreach(a) {
+  const box = $('#outBox'); if (!box) return;
+  if (!AUTH.me) { box.innerHTML = ''; return; }
+  let rows = []; try { rows = await rest(`outreach?account_id=eq.${a.id}&order=sent_at.desc&limit=20`); } catch (e) { return; }
+  const b2 = $('#outBox'); if (!b2) return;
+  b2.innerHTML = rows.length ? `<div><span class="sub">Outreach on this account</span>${rows.map(r => { const [t, k] = OUT_LABEL[r.status] || ['Sent', 'pill']; return `<div class="fact"><span class="fid">${r.channel === 'email' ? '✉' : '✎'}</span><span><b>${r.channel === 'email' ? 'Emailed ' + esc(r.to_email) : 'Marked as sent'}</b> <span class="${k}">${t}</span><br><span class="sub">${fmtDate(r.sent_at)} · ${esc(r.sent_by || '')}${r.subject ? ' · ' + esc(r.subject) : ''}</span></span><span class="out-act">${['replied', 'meeting', 'no_reply'].filter(s => s !== r.status).map(s => `<button class="btn" data-os="${r.id}|${s}">${OUT_BTN[s]}</button>`).join('')}</span></div>`; }).join('')}</div>` : '';
+  $$('[data-os]', b2).forEach(bn => bn.onclick = async () => {
+    const [id, st] = bn.dataset.os.split('|'); bn.disabled = true;
+    try { await rest('rpc/outreach_set_status', {method: 'POST', body: JSON.stringify({p_id: id, p_status: st})}); toast(st === 'no_reply' ? 'Marked as no reply' : st === 'meeting' ? 'Nice. Meeting recorded' : 'Reply recorded');
+      const next = st === 'replied' ? (['Prospect', 'Contacted'].includes(a.stage) ? 'Replied' : null) : st === 'meeting' ? (['Prospect', 'Contacted', 'Replied'].includes(a.stage) ? 'Meeting' : null) : null;
+      OUTC.at = 0; if (next) await patchAcc(a.id, {stage: next}, 'stage'); loadOutreach(a); } catch (e) { toast('Could not save: ' + e.message.replace(/^\d+ /, '').slice(0, 120)); bn.disabled = false; }
+  });
+}
+async function markSent(a) {
+  try { await rest('rpc/outreach_log', {method: 'POST', body: JSON.stringify({p_account: a.id, p_channel: 'manual'})}); toast('Logged as sent. Mark the reply here when it comes.'); OUTC.at = 0; if (a.stage === 'Prospect') await patchAcc(a.id, {stage: 'Contacted'}, 'stage'); loadOutreach(a); }
+  catch (e) { toast('Could not log: ' + e.message.replace(/^\d+ /, '').slice(0, 120)); }
+}
+const OUTC = {at: 0, data: null};
+async function outStats() { if (Date.now() - OUTC.at < 20000 && OUTC.data) return OUTC.data; try { OUTC.data = await rest('rpc/outreach_stats', {method: 'POST', body: '{}'}); OUTC.at = Date.now(); } catch (e) { OUTC.data = null; } return OUTC.data; }
+async function renderOutCard() {
+  const c = $('#outCard'); if (!c) return;
+  if (M.mode !== 'live' || isDemoWs()) { c.hidden = true; return; }
+  const s = await outStats(); c.hidden = false;
+  const rate = s && s.sent ? Math.round(100 * s.replied / s.sent) : 0;
+  c.innerHTML = `<div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5h14v10H3z"/><path d="M3 6l7 5 7-5"/></svg></span><h3>Outreach results</h3><span class="end"><span class="sub">real outreach logged here</span></span></div>
+    ${s && s.sent ? `<div class="okpis"><div><b>${s.sent}</b><span>Sent</span></div><div><b>${s.replied}</b><span>Replied</span></div><div><b>${rate}%</b><span>Reply rate</span></div><div><b>${s.meetings}</b><span>Meetings</span></div></div>
+    <div class="tw"><table><thead><tr><th>Hook</th><th class="num">Sent</th><th class="num">Replied</th><th class="num">Rate</th></tr></thead><tbody>${(s.by_hook || []).map(h => `<tr><td>${esc(String(h.hook).replace('_', ' '))}</td><td class="num">${h.sent}</td><td class="num">${h.replied}</td><td class="num">${h.sent ? Math.round(100 * h.replied / h.sent) + '%' : '—'}</td></tr>`).join('')}</tbody></table></div>`
+    : '<p class="sub">Nothing logged yet. Open an account, then use Send email or Mark as sent on its opener. When someone answers, mark the reply and this card shows the reply rate for each hook.</p>'}`;
+}
+
+/* ---------- email composer (Resend, through the scout-email function) ---------- */
+function openCompose(a) {
+  if (!AUTH.me) { if (!AUTH.s) openAuth('in'); else toast('Your account is not on the team list yet, so you cannot send email.'); return; }
+  if (a.demo) { toast('Demo companies are fictional, so email is turned off for them.'); return; }
+  const m = modal('composeModal', `<button class="nx" data-x aria-label="Close">×</button><h3>Email ${esc(a.name)}</h3>
+    <p class="sub">Sent through Resend. Replies go to ${esc(AUTH.me.email)}. Nothing is sent until you confirm on the next click.</p>
+    <form id="cpF" class="mform"><label>To<input id="cpTo" type="email" required autocomplete="off" placeholder="name@${esc(a.domain)}"></label><label>Subject<input id="cpSub" type="text" required maxlength="200"></label><label>Message<textarea id="cpBody" required rows="9"></textarea></label>
+    <div id="cpMsg" class="mmsg" role="status"></div><div class="toolbar"><button class="btn" type="button" id="cpCancel">Cancel</button><button class="btn primary" type="submit" id="cpGo">Review and send</button></div></form>`, true);
+  $('#cpSub', m).value = `Quick question about ${a.name}'s engineering setup`;
+  $('#cpBody', m).value = `Hi,\n\n${a.brief?.opener || ''}\n\nBest,\n${AUTH.me.name || AUTH.me.email}`;
+  let armed = false; const msg = $('#cpMsg', m), go = $('#cpGo', m);
+  const disarm = () => { armed = false; go.textContent = 'Review and send'; msg.textContent = ''; };
+  ['cpTo', 'cpSub', 'cpBody'].forEach(i => $('#' + i, m).addEventListener('input', disarm));
+  $('[data-x]', m).onclick = $('#cpCancel', m).onclick = () => m.remove();
+  $('#cpF', m).onsubmit = async e => {
+    e.preventDefault(); const to = $('#cpTo', m).value.trim();
+    if (!armed) { armed = true; go.textContent = `Confirm: send to ${to}`; msg.textContent = 'Check the recipient and the message, then press the button again to send.'; msg.className = 'mmsg'; return; }
+    go.disabled = true; go.textContent = 'Sending…';
+    try {
+      await refreshSession();
+      const r = await fetch(CFG.url + '/functions/v1/scout-email', {method: 'POST', headers: H(), body: JSON.stringify({account_id: a.id, to, subject: $('#cpSub', m).value, body: $('#cpBody', m).value})});
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const e2 = new Error(j.error || ('Email failed (' + r.status + ')')); e2.code = j.code; throw e2; }
+      m.remove(); toast(`Email sent to ${to}. It is logged under this account.`); OUTC.at = 0;
+      if (a.stage === 'Prospect') await patchAcc(a.id, {stage: 'Contacted'}, 'stage'); loadOutreach(a);
+    } catch (err) {
+      const hint = err.code === 'no_key' ? ' In Supabase, open Edge Functions, then Secrets, and add RESEND_API_KEY.' : /testing emails|own email|verify a domain/i.test(err.message) ? ' The Resend test sender can only deliver to the email address on your own Resend account. Verify a domain in Resend to email anyone.' : '';
+      msg.className = 'mmsg bad'; msg.textContent = err.message + hint; go.disabled = false; armed = false; go.textContent = 'Review and send';
+    }
+  };
+  setTimeout(() => $('#cpTo', m).focus(), 30);
+}
+
+/* ---------- team (Settings tab) ---------- */
+async function setTeam(body) {
+  if (!AUTH.me) { body.innerHTML = '<div class="note"><b>Who can change things.</b> Everyone can read. Only people on the team list can add companies, edit settings and send email, and only admins can edit the list. Sign in as a team member to see it.</div>'; return; }
+  const rows = await rest('team_members?select=email,name,role,active,created_at,added_by&order=created_at'); AUTH.team = rows;
+  const admin = AUTH.me.role === 'admin';
+  body.innerHTML = `<div class="note" style="margin-bottom:12px"><b>Who can change things.</b> Everyone can read. People on this list can add companies, edit settings and send email once they create an account with the same email. Only admins can edit the list.</div>
+  <div class="tw"><table><thead><tr><th>Person</th><th>Role</th><th>Status</th><th>Added</th><th></th></tr></thead><tbody>${rows.map(r => `<tr><td><b style="color:#EEEDFF">${esc(r.name || r.email)}</b><div class="sub">${esc(r.email)}</div></td><td>${r.role === 'admin' ? 'Admin' : 'Account executive'}</td><td>${r.active ? '<span class="pill ok">active</span>' : '<span class="pill">inactive</span>'}</td><td>${fmtDate(r.created_at)}</td><td>${admin && r.email.toLowerCase() !== (AUTH.me.email || '').toLowerCase() ? `<button class="btn" data-ta="${esc(r.email)}|${r.active ? 0 : 1}">${r.active ? 'Deactivate' : 'Reactivate'}</button>` : ''}</td></tr>`).join('')}</tbody></table></div>
+  ${admin ? `<form class="form" id="tmForm" style="margin-top:12px"><label>Email<input id="tmE" type="email" required placeholder="name@company.com"></label><label>Name<input id="tmN" type="text" placeholder="Their name (shown as owner)"></label><label>Role<select id="tmR"><option value="ae">Account executive</option><option value="admin">Admin</option></select></label><button class="btn primary" type="submit">Add to team</button></form><p class="sub" style="margin-top:8px">After you add someone, they open this site, choose Create account with that same email, and can then make changes.</p>` : '<p class="sub" style="margin-top:12px">Sign in as an admin to add teammates.</p>'}`;
+  $$('[data-ta]', body).forEach(b => b.onclick = async () => { const [em, on] = b.dataset.ta.split('|'); try { await rest('rpc/team_set_active', {method: 'POST', body: JSON.stringify({p_email: em, p_on: on === '1'})}); toast('Team updated'); renderSettings(); } catch (e) { toast('Could not update: ' + e.message.replace(/^\d+ /, '').slice(0, 120)); } });
+  $('#tmForm') && ($('#tmForm').onsubmit = async e => { e.preventDefault(); try { await rest('rpc/team_add', {method: 'POST', body: JSON.stringify({p_email: $('#tmE').value.trim(), p_name: $('#tmN').value.trim(), p_role: $('#tmR').value})}); toast('Added to the team'); renderSettings(); } catch (err) { toast('Could not add: ' + err.message.replace(/^\d+ /, '').slice(0, 120)); } });
+}
+
+const H = () => ({apikey: CFG.key, Authorization: 'Bearer ' + (AUTH.s?.access_token || CFG.key), 'Content-Type': 'application/json'});
+const OPEN_POST = /^rpc\/(me|outreach_stats|is_member)$/;
+async function rest(path, opts = {}) {
+  const m = (opts.method || 'GET').toUpperCase();
+  if (m !== 'GET' && m !== 'HEAD' && !OPEN_POST.test(path) && !AUTH.me) {
+    if (!AUTH.s) openAuth('in');
+    throw new Error(AUTH.s ? 'Your account is not on the team list yet. Ask an admin to add your email.' : 'Sign in as a team member to make changes.');
+  }
+  const go = () => fetch(CFG.url + '/rest/v1/' + path, {...opts, headers: {...H(), ...(opts.headers || {})}});
+  let r = await go();
+  if (r.status === 401 && AUTH.s) { await refreshSession(true); r = await go(); }
+  if (!r.ok) throw new Error(r.status + ' ' + (await r.text()).slice(0, 160));
+  const t = await r.text(); try { return t ? JSON.parse(t) : null; } catch (e) { return t; }
+}
 
 async function loadLive() {
   const acc = await rest(`v_accounts_ws?select=*&is_demo=eq.${isDemoWs()}&order=name`);
@@ -825,6 +1003,7 @@ function renderDetail(a) {
       <div class="toolbar"><button class="btn ok" data-fb="used_as_is">Use as is</button><button class="btn" id="editBtn">Edit</button><button class="btn" id="copyBtn">Copy</button><button class="btn bad" data-fb="rejected">Reject</button></div>`
       : `<div class="empty"><b>No opener generated.</b> There is not enough verified public signal to say something specific and true. Ask instead:<ol>${(b.discovery || []).map(q => `<li>${esc(q)}</li>`).join('')}</ol></div>`}
     ${actionBar(a)}
+    <div id="outBox"></div>
     <div class="summary">${summary}</div>
     ${b.opener && (b.discovery || []).length ? `<div><span class="sub">Still ask on the call</span><ol style="margin:6px 0 0;padding-left:18px;color:var(--ink-2)">${b.discovery.map(q => `<li>${esc(q)}</li>`).join('')}</ol></div>` : ''}
     <div style="display:flex;gap:6px;flex-wrap:wrap">${langs}</div>
@@ -881,6 +1060,7 @@ function renderWatchlist() {
   const owners = [...new Set(M.accounts.map(a => a.owner).filter(Boolean))].sort();
   $('#ownerFilter').innerHTML = '<option value="">All owners</option>' + owners.map(o => `<option ${o === OWN ? 'selected' : ''}>${esc(o)}</option>`).join('');
   try { $('#meName').value = localStorage.getItem('scout.me') || ''; } catch (e) {}
+  if (AUTH.me) { $('#meName').value = AUTH.me.name || AUTH.me.email; $('#meName').readOnly = true; $('#meName').title = 'Owner is the person signed in'; }
   $$('[data-hot]').forEach(b => b.onclick = () => patchAcc(b.dataset.hot, {hot: b.getAttribute('aria-pressed') !== 'true'}, 'hot'));
   $$('[data-owner]').forEach(i => i.onchange = () => patchAcc(i.dataset.owner, {owner: i.value.trim() || null}, 'owner'));
   $$('[data-remove]').forEach(b => b.onclick = () => setActive(b.dataset.remove, false));
@@ -1034,8 +1214,8 @@ function renderAbout() {
     ${node(6, 'Score', 'How strong, how relevant, how timely', io('The ledger, your seller profile and last week\'s snapshot.', 'Evidence tier A, B or C (only first-party sources count; fingerprints and news never lift the tier on their own). ICP fit against what you sell. Why-now from hiring and change signals. Pain hypotheses from editable hook playbooks. A diff against last week.', 'Scores, a tier and a list of what changed.', 'If nothing material changed, writing is skipped and last week\'s brief stays.'))}
     ${node(7, 'Write (AI step 2)', 'Summary and opener from facts only', io('A numbered fact sheet, not the open web.', 'Gemini Flash writes two paragraphs and one opener of at most 30 words. It may use only the numbered facts and must cite the fact ids behind every sentence. Tier C accounts get discovery questions instead.', 'A draft brief with citations.', ''))}
     ${node(8, 'Verify', 'Code, not AI, checks the AI', io('The draft.', 'Code rejects unknown technologies, uncited sentences, numbers the facts do not support, banned phrases and long openers. One repair round is allowed; if the second draft also fails, a plain safe template is used.', 'A brief that passed, or the template.', 'The brief is labelled "repaired once" or "template fallback" so a reviewer can see it.'))}
-    ${node(9, 'Deliver', 'Put it in front of the AE', io('The verified brief.', 'It appears on the account page with its citations. Window Radar shows timing. Optional pushes go to Slack, a webhook or a HubSpot note, and a Monday digest summarises the week. A Gmail draft opens with the opener filled in.', 'Something the AE can act on.', 'Nothing is ever sent automatically. A person always presses send.'))}
-    ${node(10, 'Learn', 'Your corrections make the next run better', io('Your clicks.', '"Use as is", edits and rejects are stored. "Mark wrong" on a fact creates a permanent override. Stages you log (won, lost) feed the "what is working" table on Window Radar.', 'A feedback record and sharper output next week.', ''))}
+    ${node(9, 'Deliver', 'Put it in front of the AE', io('The verified brief.', 'It appears on the account page with its citations. Window Radar shows timing. Optional pushes go to Slack, a webhook or a HubSpot note, and a Monday digest summarises the week. You can email the opener straight from the account page (through Resend) or open a Gmail draft. Every send is logged so replies can be tracked.', 'Something the AE can act on.', 'Nothing is ever sent automatically. A person always presses send: either the Send email button (it asks you to confirm the recipient first) or your own Gmail.'))}
+    ${node(10, 'Learn', 'Your corrections and replies make the next run better', io('Your clicks and replies.', '"Use as is", edits and rejects are stored. Emails and replies you mark are counted as reply rate per hook. "Mark wrong" on a fact creates a permanent override. Stages you log (won, lost) feed the "what is working" table on Window Radar.', 'A feedback record and sharper output next week.', ''))}
   </div>
 
   <h2 class="sh">4 · Two loops around the pipeline</h2>
@@ -1055,7 +1235,7 @@ function renderAbout() {
   </div>
 
   <h2 class="sh">6 · What Scout will never do</h2>
-  <div class="never"><span>Send a message for you</span><span>Invent a technology, number or quote</span><span>Delete a company or fact without you</span><span>Hide that evidence is thin</span><span>Use paid or private data</span></div>
+  <div class="never"><span>Send a message without you confirming it</span><span>Invent a technology, number or quote</span><span>Delete a company or fact without you</span><span>Hide that evidence is thin</span><span>Use paid or private data</span></div>
 
   <h2 class="sh">7 · Try it in two minutes</h2>
   <div class="tryit">
@@ -1073,12 +1253,12 @@ const CHECKS = [
   {id: 1, grp: 'Kill switches', q: 'Problem real?', v: 'pass', how: 'The problem is defined by the course brief (Problem Statement 5): an enterprise AE needs current engineering context on target accounts and today gathers it by hand across GitHub, job boards and blogs. The build is shaped around one persona, an enterprise AE.', short: 'Validated against the brief and my own testing, not by interviewing a working AE. No time-saved figure is claimed.', next: 'Show it to two or three AEs and time one account by hand against Scout.'},
   {id: 2, grp: 'Kill switches', q: 'Workflow repeated?', v: 'pass', how: 'Every account is re-read every week (daily for hot accounts) and new companies are added continuously, by hand, by bulk import or by Discovery. A one-off tool would not need a scheduler, a queue or a diff.', short: 'A weekly rhythm suits long B2B sales cycles; it is not built for one-off research.', next: 'Let each AE choose their own cadence per account.', ev: () => { const L = liveAccts(); return `${L.length} accounts in this workspace, ${(M.runs || []).length} refresh runs logged.`; }},
   {id: 3, grp: 'Kill switches', q: 'Input available?', v: 'partial', how: 'All inputs are free and public: GitHub API, job boards, company websites, RSS, DNS, Google News. No logins, no paid data, no scraping behind walls. The site is read politely.', short: 'Not every company publishes enough. Companies with no GitHub org or job board end up Tier C with no opener, by design.', next: 'Offer paid enrichment (BuiltWith, TheirStack) as an optional source for thin accounts.', ev: () => { const L = liveAccts(), c = t => L.filter(a => a.tier === t).length; const none = L.filter(a => !a.github_org && !a.ats).length; return `Tiers here: ${c('A')} A, ${c('B')} B, ${c('C')} C. ${none} account${none === 1 ? '' : 's'} with neither a GitHub org nor a job board.`; }},
-  {id: 4, grp: 'Sizing', q: 'Output valuable?', v: 'partial', how: 'The output is a two-paragraph summary and one opener that points at a specific, checkable fact (a measured build time, a migration, a hiring push) rather than generic praise. Every sentence is cited.', short: 'Nobody has measured replies yet, so the value of the opener is unproven until it is used in real outreach. Tier C accounts get questions, not a hook.', next: 'Log "sent" and "replied" against each opener.', ev: () => { const L = liveAccts().filter(a => a.brief); const o = L.filter(a => a.brief.opener).length, p = L.filter(a => a.brief.verifier_passed).length; return `${L.length} briefs: ${o} with an opener, ${p} passed the verifier first time.`; }},
-  {id: 5, grp: 'Sizing', q: 'Impact measurable?', v: 'partial', how: 'What is measured today: "use as is", edit and reject clicks; facts marked wrong; refresh runs, durations and verifier results on Pipeline health; and Window Radar compares hooks against the won or lost stages you log.', short: 'There is no reply, meeting or pipeline number yet because there is no real outreach loop inside the product. The "what is working" table depends on the AE logging stages.', next: 'Add sent and replied buttons and a weekly outcomes report.', ev: () => { const f = M.feedback || []; const c = a => f.filter(x => x.action === a).length; return `${f.length} feedback events logged (${c('used_as_is')} used as is, ${f.filter(x => /^edited/.test(x.action)).length} edited, ${c('rejected')} rejected).`; }},
+  {id: 4, grp: 'Sizing', q: 'Output valuable?', v: 'partial', how: 'The output is a two-paragraph summary and one opener that points at a specific, checkable fact (a measured build time, a migration, a hiring push) rather than generic praise. Every sentence is cited. Openers can now be emailed from the platform (Send email) or logged as sent, then marked replied or meeting, so reply rate per hook is measured.', short: 'Reply data only exists once real emails go out, so until then the value of the opener is still unproven. Tier C accounts get questions, not a hook.', next: 'Send the first real batch and read the reply rate by hook.', ev: () => { setTimeout(async () => { const s = await outStats(), el = $('#ev4'); if (el && s) el.textContent = s.sent ? ` Outreach: ${s.sent} sent, ${s.replied} replied (${Math.round(100 * s.replied / s.sent)}%).` : ' Outreach: none logged yet.'; }, 0);  const L = liveAccts().filter(a => a.brief); const o = L.filter(a => a.brief.opener).length, p = L.filter(a => a.brief.verifier_passed).length; return `${L.length} briefs: ${o} with an opener, ${p} passed the verifier first time.<span id="ev4"></span>`; }},
+  {id: 5, grp: 'Sizing', q: 'Impact measurable?', v: 'partial', how: 'What is measured today: sent, replied and meeting for every opener (Send email or Mark as sent, then mark the reply), with reply rate per hook on the Dashboard; "use as is", edit and reject clicks; facts marked wrong; refresh runs and verifier results on Pipeline health; and Window Radar compares hooks against the stages you log.', short: 'The reply numbers are only as good as the logging, and the sample stays small until the product is used on real outreach. Replies are marked by hand because inbound email tracking needs a verified domain.', next: 'Verify a sending domain so replies and opens can be tracked automatically.', ev: () => { setTimeout(async () => { const s = await outStats(), el = $('#ev5'); if (el && s) el.textContent = s.sent ? ` Outreach: ${s.sent} sent, ${s.replied} replied, ${s.meetings} meetings.` : ' Outreach: none logged yet.'; }, 0);  const f = M.feedback || []; const c = a => f.filter(x => x.action === a).length; return `${f.length} feedback events logged (${c('used_as_is')} used as is, ${f.filter(x => /^edited/.test(x.action)).length} edited, ${c('rejected')} rejected).<span id="ev5"></span>`; }},
   {id: 6, grp: 'Boundary', q: 'Failure risk OK?', v: 'pass', how: 'The worst failure is an AE sending a prospect a wrong claim. Four controls sit in front of it: every fact needs a verbatim quote, code verifies every generated sentence, inferred signals (fingerprints, news) are hedged and cannot raise the tier, and nothing is ever sent automatically.', short: 'A verbatim quote can still be stale (an old job post), and a GitHub org can be matched to the wrong company. Matches under 0.8 confidence are flagged "verify GitHub org".', next: 'Show the age of each quote beside its citation.', ev: () => { const L = liveAccts().filter(a => a.brief); const r = L.filter(a => a.brief.repaired).length, f = L.filter(a => a.brief.fallback).length; return `${L.length} live briefs: ${r} needed a repair, ${f} fell back to the safe template. Both are labelled on the account.`; }},
   {id: 7, grp: 'Boundary', q: 'Judgment protected?', v: 'partial', how: 'Humans decide who to contact, what to say (edit or reject the opener), what is true ("mark wrong" is permanent), stage and owner. Borderline Discovery leads go to a review queue where a person clicks Add or Dismiss.', short: 'Discovery auto-add is the one place AI acts without a person. It is limited by a score threshold, a weekly cap of 5, non-destructive pruning and visible "Discovered" tags, but it is still automatic.', next: 'Offer a mode where every discovered lead needs approval.', ev: () => '<span id="ev7">Loading discovery counts…</span>'},
   {id: 8, grp: 'Sizing', q: 'ROI worth it?', v: 'partial', how: 'Cost side: Gemini Flash only, a few calls per refresh, GitHub, Supabase and Vercel on free tiers. A refresh finishes in about a minute for an account that would take a person far longer to research by hand.', short: 'Time saved is an estimate, not a measurement, and a free Gemini key has rate limits that would matter beyond a few dozen accounts.', next: 'Time ten manual researches for a real figure, and add a usage meter.', ev: () => { const ok = (M.runs || []).filter(r => r.status === 'ok'); const s = ok.map(r => (r.duration_ms || 0) / 1000).filter(Boolean); const g = ok.map(r => r.gemini_calls || 0); const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : 0; return `${ok.length} successful runs: about ${Math.round(avg(s))} s and ${avg(g).toFixed(1)} Gemini calls on average.`; }},
-  {id: 9, grp: 'Boundary', q: 'Owner clear?', v: 'gap', how: 'Each account has an owner label with a filter, and there is one product owner in mind (the AE who sets the seller profile, hooks and outputs).', short: 'This is the weakest check. Owner is a free-text label, not a login. There is no sign-in, and the browser uses the public key with write access to the watchlist and config tables, so anyone with the link could change settings.', next: 'Add email login, per-user permissions and a change log for settings.', ev: () => { const L = liveAccts(); const o = L.filter(a => a.owner).length; return `${o} of ${L.length} accounts have an owner label.`; }},
+  {id: 9, grp: 'Boundary', q: 'Owner clear?', v: 'partial', how: 'Owners are now people. Anyone can read, but changing anything needs a sign-in with an email on the team list (set by an admin in Settings, Team). Database writes, settings functions, push and email all check that list on the server, and each new account is stamped with the signed-in person as owner. Recipient addresses and outreach history are visible to the team only.', short: 'Briefs are still readable by anyone with the link, by design, so the product can be viewed. There is no audit log of who changed a setting, the refresh and discovery endpoints still accept the public key (they only re-read existing companies, but could use up quota), and accounts are shared across the team rather than separated per person.', next: 'Add a change log, require a user token on the refresh endpoint, and separate accounts per AE.', ev: () => { const L = liveAccts(); const o = L.filter(a => a.owner).length; return `${o} of ${L.length} accounts have an owner. ` + (AUTH.me ? `${AUTH.team.filter(t => t.active).length} active team members.` : 'Sign in to see the team.'); }},
 ];
 const liveAccts = () => M.accounts.filter(a => a.active !== false);
 const VERD = {pass: ['Pass', 'ok'], partial: ['Partial', 'warn'], gap: ['Gap', 'bad']};
@@ -1093,18 +1273,18 @@ function renderChecks() {
     <details><summary>Where it falls short, and the next fix</summary><p><span class="lbl">Falls short</span>${c.short}</p><p><span class="lbl">Next fix</span>${c.next}</p></details></div>`; };
   $('#chkBody').innerHTML = `
   <p class="lead">The nine checks ask whether something deserves to be built. Here is each one answered for Tech Stack Scout, with how it was validated, live numbers from this workspace, and an honest note on where it falls short.</p>
-  <div class="chkscore"><div><b>${cnt('pass')}</b><span>Pass</span></div><div><b>${cnt('partial')}</b><span>Partial</span></div><div><b>${cnt('gap')}</b><span>Gap</span></div><p>No kill switch is a No, so the product deserves to exist. Check 03 depends on the company, and check 09 is the clearest weakness to close next.</p></div>
+  <div class="chkscore"><div><b>${cnt('pass')}</b><span>Pass</span></div><div><b>${cnt('partial')}</b><span>Partial</span></div><div><b>${cnt('gap')}</b><span>Gap</span></div><p>${cnt('gap') ? 'One check is still open.' : 'No check is an outright gap now.'} No kill switch is a No, so the product deserves to exist. Check 03 depends on the company, and the clearest remaining weakness is that value is only proven once real outreach data comes in.</p></div>
   ${groups.map(g => `<h2 class="sh">${g} <span class="sub" style="display:inline;font-weight:400">· ${meta[g]}</span></h2><div class="chkgrid">${CHECKS.filter(c => c.grp === g).map(card).join('')}</div>`).join('')}
-  <h2 class="sh">Closing the gaps, in order</h2>
-  <div class="chkgrid"><div class="chk"><div class="ch"><b>1 · Sign-in and ownership (check 09)</b></div><p class="cw">Add email login, give each AE their own accounts and settings, and keep a change log. This also closes the open write access.</p></div>
-  <div class="chk"><div class="ch"><b>2 · Outcome tracking (checks 04, 05)</b></div><p class="cw">Add "sent" and "replied" to every opener and report which hooks get answers. That turns the product's value from a claim into a number.</p></div>
-  <div class="chk"><div class="ch"><b>3 · Real-user validation (checks 01, 08)</b></div><p class="cw">Time ten manual researches, then have two or three AEs use Scout for a week and compare.</p></div></div>`;
+  <h2 class="sh">What would close the rest, in order</h2>
+  <div class="chkgrid"><div class="chk"><div class="ch"><b>1 · Real outreach data (checks 04, 05)</b></div><p class="cw">Send a first real batch through Send email, mark replies, and read the reply rate by hook on the Dashboard.</p></div>
+  <div class="chk"><div class="ch"><b>2 · Verified sending domain (checks 05, 06)</b></div><p class="cw">Verify a domain in Resend so emails reach any recipient, and so replies and opens can be tracked without hand-marking.</p></div>
+  <div class="chk"><div class="ch"><b>3 · Audit log and per-AE accounts (check 09)</b></div><p class="cw">Record who changed what, require a user token on the refresh endpoint, and separate accounts per person.</p></div></div>`;
   (async () => { try { const L = await rest('leads?select=status'); const c = s => L.filter(l => l.status === s).length; const el = $('#ev7'); if (el) el.textContent = `${c('auto_added')} leads auto-added, ${c('review')} waiting for a person, ${c('approved')} approved by hand, ${c('dismissed')} dismissed.`; } catch (e) { const el = $('#ev7'); if (el) el.textContent = 'Discovery counts are available on the live workspace.'; } })();
 }
 
 /* ---------- routing ---------- */
 function go(v) { view = v; $$('.nav').forEach(n => { if (n.dataset.view === v) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); }); $$('.view').forEach(s => s.hidden = s.dataset.v !== v); $('#side').classList.remove('open'); render(); try { history.replaceState(null, '', '#' + v); } catch (e) {} window.scrollTo({top: 0}); }
-function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'checks') renderChecks(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
+function render() { if (!M) return; if (view === 'dashboard') { renderDashboard(); renderOutCard(); } if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'checks') renderChecks(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
 $$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
 $('#burger').onclick = () => $('#side').classList.toggle('open');
@@ -1182,9 +1362,12 @@ function coverageHTML(a) {
 }
 function actionBar(a) {
   const b = a.brief || {};
-  return `<div class="toolbar">${b.opener ? '<button class="btn" id="gmailBtn">Open in Gmail</button><button class="btn" id="pushBtn">Send to Slack / CRM</button>' : ''}<select id="stageSel" aria-label="Stage">${['Prospect', 'Contacted', 'Replied', 'Meeting', 'Opportunity', 'Won', 'Lost'].map(x => `<option ${x === a.stage ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="hot" id="hotBtn" aria-pressed="${!!a.hot}" title="Hot accounts refresh daily">${a.hot ? '★ hot' : '☆ hot'}</button></div>`;
+  return `<div class="toolbar">${b.opener && M.mode === 'live' && !a.demo ? '<button class="btn primary" id="emailBtn">Send email</button><button class="btn" id="sentBtn">Mark as sent</button>' : ''}${b.opener ? '<button class="btn" id="gmailBtn">Open in Gmail</button><button class="btn" id="pushBtn">Send to Slack / CRM</button>' : ''}<select id="stageSel" aria-label="Stage">${['Prospect', 'Contacted', 'Replied', 'Meeting', 'Opportunity', 'Won', 'Lost'].map(x => `<option ${x === a.stage ? 'selected' : ''}>${x}</option>`).join('')}</select><button class="hot" id="hotBtn" aria-pressed="${!!a.hot}" title="Hot accounts refresh daily">${a.hot ? '★ hot' : '☆ hot'}</button></div>`;
 }
 function wireExtras(a, d) {
+  $('#emailBtn') && ($('#emailBtn').onclick = () => openCompose(a));
+  $('#sentBtn') && ($('#sentBtn').onclick = () => markSent(a));
+  loadOutreach(a);
   $('#gmailBtn') && ($('#gmailBtn').onclick = () => { const b = a.brief; const body = `${b.opener}\n\n${(b.summary || []).map(p => p.map(x => x.text).join(' ')).join('\n\n')}`; const su = `Quick thought on ${a.name}'s engineering setup`; window.open('https://mail.google.com/mail/?view=cm&fs=1&su=' + encodeURIComponent(su) + '&body=' + encodeURIComponent(body), '_blank', 'noopener'); });
   $('#pushBtn') && ($('#pushBtn').onclick = async () => {
     if (M.mode !== 'live' || a.demo) { toast('Pushing works on live accounts. Add a Slack or webhook target in Settings first.'); return; }
@@ -1267,7 +1450,7 @@ $('#askForm').addEventListener('submit', async e => {
 
 /* ---------- settings ---------- */
 let setTab = 'profile';
-const TABS = [['profile', 'Seller profile'], ['tech', 'Technologies'], ['play', 'Hook playbooks'], ['src', 'Sources'], ['prompt', 'Writer prompt'], ['out', 'Outputs']];
+const TABS = [['profile', 'Seller profile'], ['tech', 'Technologies'], ['play', 'Hook playbooks'], ['src', 'Sources'], ['prompt', 'Writer prompt'], ['out', 'Outputs'], ['team', 'Team']];
 const lines = t => String(t || '').split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
 async function renderSettings() {
   $('#setTabs').innerHTML = TABS.map(([k, l]) => `<button class="btn" data-tab="${k}" aria-pressed="${k === setTab}">${l}</button>`).join('');
@@ -1275,7 +1458,7 @@ async function renderSettings() {
   const body = $('#setBody');
   if (M.mode !== 'live') { body.innerHTML = '<div class="note">Settings are stored in Supabase, so they are editable on the live deployment.</div>'; return; }
   body.innerHTML = '<span class="spin" style="display:inline-block"></span>';
-  try { await ({profile: setProfile, tech: setTech, play: setPlay, src: setSrc, prompt: setPrompt, out: setOut})[setTab](body); } catch (e) { body.innerHTML = `<div class="note">Could not load: ${esc(e.message)}</div>`; }
+  try { await ({profile: setProfile, tech: setTech, play: setPlay, src: setSrc, prompt: setPrompt, out: setOut, team: setTeam})[setTab](body); } catch (e) { body.innerHTML = `<div class="note">Could not load: ${esc(e.message)}</div>`; }
 }
 const jsonOr = (t, fb) => { try { return JSON.parse(t); } catch (e) { return fb; } };
 async function save(path, method, obj, ok) { try { await rest(path, {method, body: JSON.stringify(obj), headers: {Prefer: 'resolution=merge-duplicates,return=minimal'}}); toast(ok || 'Saved. Applies from the next refresh.'); return true; } catch (e) { toast('Could not save: ' + e.message); return false; } }
@@ -1346,7 +1529,7 @@ async function setOut(body) {
 
 const start = (location.hash || '').slice(1); if (['dashboard', 'accounts', 'watchlist', 'radar', 'ask', 'settings', 'signals', 'pipeline', 'prompts', 'about', 'discover', 'checks'].includes(start)) view = start;
 $$('.view').forEach(s => s.hidden = s.dataset.v !== view); $$('.nav').forEach(n => { if (n.dataset.view === view) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
-load();
+(async () => { await refreshSession(); await loadMe(); renderUser(); load(); setInterval(refreshSession, 60000); })();
 
 </script>
 </body>

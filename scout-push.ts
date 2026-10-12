@@ -5,6 +5,17 @@ const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers
 const J = (o: unknown, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...CORS, "Content-Type": "application/json" } });
 const PRIVATE = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.|0\.|\[?::1)/i;
 
+const EMAIL_OK = (e: unknown) => typeof e === "string" && e.length > 3;
+async function member(req: Request) {
+  const tok = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+  if (tok && tok === Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) return { email: "system", active: true }; // internal callers (change alerts)
+  const { data, error } = await SB.auth.getUser(tok);
+  const email = data?.user?.email?.toLowerCase();
+  if (error || !EMAIL_OK(email)) return null;
+  const { data: m } = await SB.from("team_members").select("email,active").eq("email", email!).maybeSingle();
+  return m?.active ? m : null;
+}
+
 async function load(accountId: string) {
   const { data: acc } = await SB.from("watchlist").select("*").eq("id", accountId).single();
   if (!acc) throw new Error("account not found");
@@ -54,6 +65,7 @@ async function send(t: any, d: any, mode: string, reason?: string) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
+    if (!(await member(req))) return J({ error: "Sign in as a team member to push briefs.", code: "auth" }, 401);
     const { account_id, mode = "push", reason, target_id, test } = await req.json();
     let q = SB.from("output_targets").select("*").eq("enabled", true); if (target_id) q = q.eq("id", target_id);
     const { data: targets } = await q;

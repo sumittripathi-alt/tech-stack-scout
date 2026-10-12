@@ -24,16 +24,21 @@ For every company on the Supabase `watchlist`, the system reads **live public da
 | 12 | Ask the ledger | Edge Function `scout-ask` (`scout-ask.ts`) | Gemini answers from stored evidence only; each sentence cites ledger ids and code drops anything that does not verify. |
 | 13 | Outputs | Edge Functions `scout-push` (`scout-push.ts`), `scout-digest` (`scout-digest.ts`); tables `output_targets`, `push_log` | Slack webhook, generic webhook, HubSpot note (untested), Monday digest, alerts on material change. Gmail compose link in the console. |
 | 14 | Lead discovery | Edge Function `scout-discover` (`scout-discover.ts`); tables `discovery_config`, `leads` | Finds and scores new accounts; auto-adds above a threshold up to a weekly cap, queues borderline ones for review, prunes weak auto-adds. |
-| 15 | Console | `index.html` on Vercel | Dashboard, accounts with cited briefs and coverage, watchlist, Window Radar, Discovery, Ask, signal ledger, pipeline health, Settings, feedback. |
+| 15 | Sign-in + team list | Supabase Auth, tables `team_members`, functions `is_member()`, `is_admin()` | Anyone can read; only approved teammates can change anything. Admins add teammates in Settings → Team. Owners on accounts are signed-in people. |
+| 16 | Outreach tracking | table `outreach`, RPCs `outreach_log`, `outreach_set_status`, `outreach_stats` | "Mark as sent" and "Got a reply / Meeting booked / No reply" buttons on each opener; dashboard shows sent, reply rate and reply rate per hook. Feeds Nine checks 04 and 05 with real numbers. |
+| 17 | Email sending | Edge Function `scout-email` (`scout-email.ts`), Resend | Compose from the opener, confirm, send from the platform; reply-to is the signed-in teammate; every send is logged. API key only in the `RESEND_API_KEY` secret. |
+| 18 | Console | `index.html` on Vercel | Dashboard, accounts with cited briefs and coverage, watchlist, Window Radar, Discovery, Ask, signal ledger, pipeline health, Settings, feedback. |
 
 ## Files
 
 - `index.html` — the console (static; talks to Supabase REST with the public anon key, which only has the RLS rights above).
-- `scout-refresh.ts`, `scout-push.ts`, `scout-digest.ts`, `scout-ask.ts`, `scout-discover.ts` — the five Supabase Edge Functions (deploy each with `supabase functions deploy <name>`; JWT verification on).
-- `supabase-schema.sql` — base tables, RLS, view, trigger, cron. `supabase-schema-v2-v7.sql` — outputs, v7 columns, lead discovery tables, RPCs and cron. `config-seed.sql` — default config rows.
+- `scout-refresh.ts`, `scout-push.ts`, `scout-digest.ts`, `scout-ask.ts`, `scout-discover.ts`, `scout-email.ts` — the six Supabase Edge Functions (deploy each with `supabase functions deploy <name>`; JWT verification on).
+- `supabase-schema.sql` — base tables, RLS, view, trigger, cron. `supabase-schema-v8-auth-outreach.sql` — team list, sign-in checks, outreach, lockdown. `supabase-schema-v2-v7.sql` — outputs, v7 columns, lead discovery tables, RPCs and cron. `config-seed.sql` — default config rows.
 - `vercel.json` — static hosting config.
 
 ## Secrets
+
+Edge Function secrets: `GEMINI_API_KEY`, `GITHUB_TOKEN`, `RESEND_API_KEY` (email), optional `RESEND_FROM` (defaults to Resend's test sender `onboarding@resend.dev`, which only delivers to the Resend account owner until a domain is verified).
 
 Keys never ship to the browser. The function reads `GEMINI_API_KEY` / `GITHUB_TOKEN` from Edge Function secrets, or from the private `app_config` table (RLS on, no policies).
 
@@ -96,3 +101,8 @@ Evidence tiers count only first-party sources (GitHub, job boards, website, blog
 
 ## Lead discovery (auto-add)
 `scout-discover` (weekly cron, or "Run discovery now" on the Discovery page) finds new target accounts from: lookalikes of won/opportunity accounts' tech, hiring signals (HN "Who is hiring"), open-source orgs (GitHub topics), news headlines, and competitor mentions. Each candidate is scored for fit (0-1). Score >= auto threshold (default 0.65) is auto-added to the watchlist up to a weekly cap (default 5); >= review threshold (0.5) goes to a review queue (Add / Dismiss); lower is rejected. Auto-added leads that refresh to Tier C with low ICP fit are paused, never deleted. All thresholds, sources, extra terms and excluded domains are editable in the UI (tables `discovery_config`, `leads`).
+
+## Sign-in, outreach and email (v8)
+Reading is public so reviewers can see the product. Changing anything needs an account whose email is on the team list (`team_members`); the first admin is seeded, admins add others in Settings → Team. Enforced in the database (row-level security and `is_member()` checks inside the RPCs) and again inside `scout-push` and `scout-email`, not only in the browser. Cron jobs and service-role calls are exempt. Every opener has **Send email** (compose, confirm, send via Resend) and **Mark as sent**, then **Got a reply / Meeting booked / No reply**. The dashboard shows the real reply rate and the rate per hook type.
+
+Known limits: `scout-refresh`, `scout-discover` and `scout-ask` still accept the public key; there is no audit log yet; sending uses Resend's test sender until a domain is verified.
