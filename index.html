@@ -163,6 +163,45 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
 .feed{display:flex;flex-direction:column;gap:2px}
 .feed .ev{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:10px;align-items:baseline;padding:8px 0;border-bottom:1px solid var(--line)}
 .feed .ev i{width:8px;height:8px;border-radius:50%;background:var(--violet);transform:translateY(-1px)}
+.learn{display:flex;flex-direction:column;gap:6px;max-width:1100px}
+.learn .lead{font-size:15px;color:var(--ink-2);margin:0 0 4px;line-height:1.55}
+.learn .sh{font-size:17px;margin:22px 0 10px;color:#EEEDFF}
+.trio{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;align-items:start}
+.trio.two{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.flowc{display:flex;flex-direction:column;gap:0;position:relative;padding-left:6px}
+.flowc .node{margin:0 0 10px}
+.node{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:12px 14px;cursor:pointer;transition:border-color .2s,box-shadow .2s,transform .2s;outline:none}
+.node:hover,.node:focus-visible,.node.open{border-color:rgba(139,92,246,.55);box-shadow:0 8px 30px rgba(99,102,241,.22)}
+.node .nh{display:flex;align-items:center;gap:12px}
+.node .nn{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;color:#fff;background:linear-gradient(135deg,var(--violet),var(--cyan))}
+.node .nt2{display:flex;flex-direction:column;min-width:0;flex:1}.node .nt2 b{font-size:14.5px;color:#EEEDFF}
+.node .ns{font-size:12.5px;color:var(--muted)}
+.node .chev{color:var(--muted);transition:transform .25s}
+.node:hover .chev,.node.open .chev,.node:focus-visible .chev{transform:rotate(180deg)}
+.node .more{max-height:0;opacity:0;overflow:hidden;transition:max-height .4s ease,opacity .25s ease,margin .25s;font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+.node:hover .more,.node:focus-visible .more,.node.open .more{max-height:900px;opacity:1;margin-top:10px}
+.node .more p{margin:0 0 8px}
+.io{margin:0;display:grid;grid-template-columns:110px 1fr;gap:6px 14px}.io dt{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em;padding-top:2px}.io dd{margin:0}
+@media(max-width:640px){.io{grid-template-columns:1fr}.io dt{padding-top:6px}}
+.never{display:flex;flex-wrap:wrap;gap:8px}.never span{padding:7px 12px;border-radius:999px;border:1px solid rgba(248,113,113,.35);background:rgba(248,113,113,.1);color:#FFD3D3;font-size:13px}
+.never span:before{content:"✕ ";font-weight:700}
+.tryit{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px}
+.tryit>div{background:var(--glass);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font-size:13.5px;color:var(--ink-2);line-height:2}
+.tryit b{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:rgba(139,92,246,.25);color:#fff;margin-right:6px;font-size:12px}
+.chkscore{display:flex;align-items:center;gap:22px;flex-wrap:wrap;background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:14px 18px}
+.chkscore>div{display:flex;flex-direction:column;align-items:center;min-width:56px}.chkscore b{font-size:28px;color:#EEEDFF}.chkscore span{font-size:12px;color:var(--muted)}
+.chkscore p{margin:0;flex:1;min-width:240px;font-size:13.5px;color:var(--ink-2)}
+.chkgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px;align-items:start}
+.chk{background:var(--glass);border:1px solid var(--line);border-radius:14px;padding:14px 16px;border-left:4px solid #4ADE80}
+.chk.partial{border-left-color:#FACC15}.chk.gap{border-left-color:#F87171}
+.chk:not(.pass):not(.partial):not(.gap){border-left-color:var(--violet)}
+.chk .ch{display:flex;align-items:center;gap:10px;margin-bottom:8px}.chk .ch b{flex:1;color:#EEEDFF;font-size:14.5px}
+.chk .cn{font-weight:700;color:var(--muted);font-size:13px}
+.chk p{margin:0 0 8px;font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+.chk .lbl{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;margin-bottom:2px}
+.chk .cev{background:rgba(34,211,238,.07);border:1px solid rgba(34,211,238,.2);border-radius:10px;padding:8px 10px}
+.chk details summary{cursor:pointer;color:#D9CCFF;font-size:13px;font-weight:600;margin-top:4px}
+.chk details[open] summary{margin-bottom:8px}
 .toast{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:50;padding:12px 16px;border-radius:12px;background:#1C1840;border:1px solid var(--line-2);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px;transform:translateY(20px);opacity:0;transition:all .3s;max-width:calc(100% - 36px)}
 .toast.show{transform:none;opacity:1}
 .pill.manual{color:#CFF7E4;border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.14)}
@@ -242,6 +281,7 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
     <button class="nav" data-view="settings"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="2.6"/><path d="M10 2v2.2M10 15.8V18M2 10h2.2M15.8 10H18M4.3 4.3l1.6 1.6M14.1 14.1l1.6 1.6M4.3 15.7l1.6-1.6M14.1 5.9l1.6-1.6"/></svg>Settings</button>
     <div class="sec">Support</div>
     <button class="nav" data-view="about"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="8"/><path d="M10 9v5M10 6v.5"/></svg>How it works</button>
+    <button class="nav" data-view="checks"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 5l2 2 3-3M3 11l2 2 3-3M3 17l2 2 3-3" transform="translate(0,-1)"/><path d="M11 5h6M11 11h6M11 17h6" transform="translate(0,-1)"/></svg>Nine checks<span class="tag">NEW</span></button>
     <div class="promo">
       <svg viewBox="0 0 200 110" aria-hidden="true" style="width:100%;height:auto">
         <g class="bob"><path d="M60 70 L100 50 L140 70 L100 90 Z" fill="#2B2560" stroke="#6B63C9" stroke-width="1"/><path d="M60 70 L100 90 L100 96 L60 76 Z" fill="#1E1A48"/><path d="M140 70 L100 90 L100 96 L140 76 Z" fill="#17143A"/></g>
@@ -435,8 +475,12 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
 
     <!-- ABOUT -->
     <section data-v="about" class="view grid" hidden>
-      <div class="ph"><h1>How it works</h1></div>
-      <article class="glass card rise"><div class="summary" id="aboutText"></div></article>
+      <div class="ph"><h1>How it works</h1><span class="sub">Problem, solution and workflow in plain words</span></div>
+      <div id="aboutBody" class="learn"></div>
+    </section>
+    <section data-v="checks" class="view grid" hidden>
+      <div class="ph"><h1>Nine checks</h1><span class="sub">Does this deserve to be built?</span></div>
+      <div id="chkBody" class="learn"></div>
     </section>
   </main>
 </div>
@@ -955,16 +999,112 @@ function renderChain() {
   el('text', {x: 707, y: 190, 'text-anchor': 'middle', 'font-size': 11, fill: '#B9B5E0'}, s, 'failed checks go back once as an error list');
   el('text', {x: 10, y: 34, 'font-size': 13, fill: '#B9B5E0'}, s, 'Code decides what is true; Gemini only extracts and phrases. Unchanged accounts skip P2 entirely.');
 }
+/* ---------- How it works (guided explainer) + Nine checks ---------- */
+const node = (n, title, tag, more) => `<div class="node" tabindex="0" role="button" aria-expanded="false"><div class="nh"><span class="nn">${n}</span><span class="nt2"><b>${title}</b><span class="ns">${tag}</span></span><span class="chev" aria-hidden="true">▾</span></div><div class="more">${more}</div></div>`;
+const io = (i, h, o, f) => `<dl class="io"><dt>Goes in</dt><dd>${i}</dd><dt>What happens</dt><dd>${h}</dd><dt>Comes out</dt><dd>${o}</dd>${f ? `<dt>If it fails</dt><dd>${f}</dd>` : ''}</dl>`;
+function wireNodes(root) { $$('.node', root).forEach(n => { const t = () => { const o = n.classList.toggle('open'); n.setAttribute('aria-expanded', String(o)); }; n.addEventListener('click', e => { if (e.target.closest('a,button')) return; t(); }); n.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t(); } }); }); }
+
 function renderAbout() {
-  $('#aboutText').innerHTML = `<p><b style="color:#EEEDFF">What it does.</b> For every company on the watchlist, Tech Stack Scout reads public GitHub repos (languages, build and CI files, real GitHub Actions run times), public job boards (Greenhouse, Ashby, Lever) and the engineering blog feed. It stores each finding as a fact with a source link and a verbatim quote.</p>
-  <p><b style="color:#EEEDFF">How the copy stays true.</b> Gemini Flash writes the two-paragraph summary and the opening line from a numbered fact sheet only. Every sentence must cite fact IDs. Code then rejects any technology, number or phrase that the facts do not support, asks Gemini to repair once, and otherwise falls back to a plain template.</p>
-  <p><b style="color:#EEEDFF">When it runs.</b> Every Monday at 08:47 IST (Supabase pg_cron), and within a minute of adding a company. Accounts with no material change keep last week's brief and raise no alert.</p>
-  <p><b style="color:#EEEDFF">Your feedback.</b> “Use as is”, edits and rejects are stored. “Mark wrong” on a fact creates a sticky override, so next week's refresh will not bring it back.</p>`;
+  const goBtn = (v, t) => `<button class="btn" data-go="${v}">${t}</button>`;
+  $('#aboutBody').innerHTML = `
+  <p class="lead">Hover over (or tap) any card to open the detail. Everything on this page describes what the product really does today.</p>
+
+  <h2 class="sh">1 · The problem</h2>
+  <div class="trio">
+    ${node('?', 'Who has it', 'An enterprise account executive (AE)', `<p>An AE owns a list of target companies. Before reaching out, they want to know how that company's engineering team actually works: what they build with, what they are hiring for, what they are changing right now.</p><p>This is Mesa Problem Statement 5.</p>`)}
+    ${node('?', 'What hurts', 'Research is slow, stale and generic', `<p>Finding that out means opening GitHub, job boards, blogs and news for every company, by hand, and doing it again a month later because it has changed.</p><p>The result is usually a generic opening line ("I saw your company is growing") that gets ignored.</p>`)}
+    ${node('?', 'Why AI alone is risky', 'A model will happily invent facts', `<p>If you ask an AI to write about a company it will sound confident even when it is guessing. A made-up claim in an email to a prospect damages trust.</p><p>So the design question was not "can AI write this" but "how do we stop it saying anything we cannot prove".</p>`)}
+  </div>
+
+  <h2 class="sh">2 · What Scout does about it</h2>
+  <div class="trio">
+    ${node('✓', 'A watchlist that refreshes itself', 'Weekly, from live public data', `<p>Add a company (or let Discovery find one) and Scout reads its public footprint on its own. Every Monday it re-reads everything, and only rewrites a brief when something material changed.</p>`)}
+    ${node('✓', 'A brief you can check', 'Two paragraphs + one opener', `<p>Each account gets a short engineering summary and one opening line under 30 words. Every sentence carries a citation. Click one and you see the original quote and a link to where it came from.</p>`)}
+    ${node('✓', 'Honest when there is little to say', 'Tier C: questions, not guesses', `<p>If a company publishes almost nothing, Scout says so and gives discovery questions instead of an invented hook. No company gets a made-up opener.</p>`)}
+  </div>
+
+  <h2 class="sh">3 · How it works, step by step</h2>
+  <p class="sub" style="margin:-4px 0 12px">Each step hands its result to the next. The AI is used in only two of the ten steps (4 and 7); everything else is ordinary code.</p>
+  <div class="flowc">
+    ${node(1, 'Watchlist', 'You add a company', io('A company name and website, typed in, bulk-imported, or approved from Discovery.', 'The website is cleaned (https://www.stripe.com/blog becomes stripe.com), checked to be a real site, and the company joins a queue. Three are researched at a time.', 'A tracked account with status "researching".', 'A domain that does not exist is rejected up front, before any effort is spent. Duplicates are caught.'))}
+    ${node(2, 'Find the sources', 'Where does this company publish?', io('The company website.', 'Scout reads the site politely (it obeys robots.txt and identifies itself) and follows links to find the GitHub organisation, careers page, job board and blog feed. Each guess is checked against the company domain. Name-based guessing is a last resort with lower confidence.', 'A map of sources, plus a "coverage" record of what was found.', 'Nothing found is a valid outcome. The account stays on the list, marked as limited signal. A "Fix sources" panel lets a human paste the right GitHub org, job board, careers page or blog feed.'))}
+    ${node(3, 'Collect', 'Read the public evidence', io('The source map.', 'GitHub: languages, build and CI files, and real GitHub Actions run times. Jobs: nine job-board systems plus the careers page itself. Website: careers, engineering and security pages. Blog posts. Infrastructure fingerprints (response headers, DNS, certificate subdomains). News headlines.', 'Raw material: posts, files, pages, headlines.', 'Each source runs on its own. If one is down the others continue, and the coverage chips on the account show exactly which worked.'))}
+    ${node(4, 'Extract (AI step 1)', 'Pull out the technologies, with proof', io('Job posts and careers-page text.', 'Gemini Flash lists the technologies mentioned and, for each, the exact sentence it came from. Code then checks that the sentence really appears in the source word for word, and drops anything that does not. A fixed technology dictionary keeps the vocabulary closed.', 'A list of facts, each with a verbatim quote.', 'A quote that cannot be found in the source is thrown away, so a hallucinated technology never enters the record.'))}
+    ${node(5, 'Evidence ledger', 'One fact, one source, one quote', io('The extracted facts.', 'Each fact is stored with the technology, state (in use, hiring only, migrating, noise), confidence, source link and quote. Human corrections ("mark wrong") are applied every run and never come back.', 'The ledger you can browse on the Signal ledger page.', ''))}
+    ${node(6, 'Score', 'How strong, how relevant, how timely', io('The ledger, your seller profile and last week\'s snapshot.', 'Evidence tier A, B or C (only first-party sources count; fingerprints and news never lift the tier on their own). ICP fit against what you sell. Why-now from hiring and change signals. Pain hypotheses from editable hook playbooks. A diff against last week.', 'Scores, a tier and a list of what changed.', 'If nothing material changed, writing is skipped and last week\'s brief stays.'))}
+    ${node(7, 'Write (AI step 2)', 'Summary and opener from facts only', io('A numbered fact sheet, not the open web.', 'Gemini Flash writes two paragraphs and one opener of at most 30 words. It may use only the numbered facts and must cite the fact ids behind every sentence. Tier C accounts get discovery questions instead.', 'A draft brief with citations.', ''))}
+    ${node(8, 'Verify', 'Code, not AI, checks the AI', io('The draft.', 'Code rejects unknown technologies, uncited sentences, numbers the facts do not support, banned phrases and long openers. One repair round is allowed; if the second draft also fails, a plain safe template is used.', 'A brief that passed, or the template.', 'The brief is labelled "repaired once" or "template fallback" so a reviewer can see it.'))}
+    ${node(9, 'Deliver', 'Put it in front of the AE', io('The verified brief.', 'It appears on the account page with its citations. Window Radar shows timing. Optional pushes go to Slack, a webhook or a HubSpot note, and a Monday digest summarises the week. A Gmail draft opens with the opener filled in.', 'Something the AE can act on.', 'Nothing is ever sent automatically. A person always presses send.'))}
+    ${node(10, 'Learn', 'Your corrections make the next run better', io('Your clicks.', '"Use as is", edits and rejects are stored. "Mark wrong" on a fact creates a permanent override. Stages you log (won, lost) feed the "what is working" table on Window Radar.', 'A feedback record and sharper output next week.', ''))}
+  </div>
+
+  <h2 class="sh">4 · Two loops around the pipeline</h2>
+  <div class="trio two">
+    ${node('↻', 'Discovery loop', 'New leads add themselves', `<p>Weekly, Scout looks for companies that resemble your won accounts, are hiring for platform roles, are active in open source, appear in the news or mention your competitors. Each gets a fit score.</p><p>Above the auto-add score (and under a weekly cap) the company joins the watchlist. Borderline ones wait in a review queue for your Add or Dismiss. Weak auto-adds are paused after a full read, never deleted.</p><p>${goBtn('discover', 'Open Discovery')}</p>`)}
+    ${node('↻', 'Feedback loop', 'It learns what you accept', `<p>Every "use as is", edit and reject is stored, and edited openers are shown to the writer as examples next time. Facts you mark wrong stay gone.</p><p>${goBtn('accounts', 'Open an account')}</p>`)}
+  </div>
+
+  <h2 class="sh">5 · Words you will see</h2>
+  <div class="trio">
+    ${node('A', 'Evidence tier', 'A, B or C', `<p><b>A:</b> plenty of first-party evidence from at least two kinds of source. <b>B:</b> some solid evidence. <b>C:</b> little public signal, so no opener, only questions.</p>`)}
+    ${node('%', 'ICP fit', '0 to 1', `<p>How closely the company matches what you sell, using weights you can edit in Settings. It is a ranking aid, not a prediction.</p>`)}
+    ${node('⏱', 'Why-now', '0 to 1', `<p>How timely the company looks right now: hiring surges, migrations in flight, recent news triggers.</p>`)}
+    ${node('☰', 'Hook', 'The reason to reach out', `<p>A pattern such as a migration, a platform hiring push or a measured slow build. Hooks are rules you can edit in Settings.</p>`)}
+    ${node('◎', 'Window Radar', 'When to act', `<p>Uses weekly history to place each account in a stage of a technology decision and suggests a play. It is computed by code with no AI.</p>`)}
+    ${node('★', 'Hot account', 'Refreshed daily', `<p>Flag an account as hot and it is re-read every day instead of every week.</p>`)}
+  </div>
+
+  <h2 class="sh">6 · What Scout will never do</h2>
+  <div class="never"><span>Send a message for you</span><span>Invent a technology, number or quote</span><span>Delete a company or fact without you</span><span>Hide that evidence is thin</span><span>Use paid or private data</span></div>
+
+  <h2 class="sh">7 · Try it in two minutes</h2>
+  <div class="tryit">
+    <div><b>1</b> Add a company on ${goBtn('watchlist', 'Watchlist')} and watch the pop-up when it finishes.</div>
+    <div><b>2</b> Open it on ${goBtn('accounts', 'Accounts')} and click a citation.</div>
+    <div><b>3</b> Ask a question on ${goBtn('ask', 'Ask the ledger')}.</div>
+    <div><b>4</b> See timing on ${goBtn('radar', 'Window Radar')}.</div>
+    <div><b>5</b> Review new leads on ${goBtn('discover', 'Discovery')}.</div>
+    <div><b>6</b> Read how the build holds up on ${goBtn('checks', 'Nine checks')}.</div>
+  </div>`;
+  wireNodes($('#aboutBody')); $$('[data-go]', $('#aboutBody')).forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.go); });
+}
+
+const CHECKS = [
+  {id: 1, grp: 'Kill switches', q: 'Problem real?', v: 'pass', how: 'The problem is defined by the course brief (Problem Statement 5): an enterprise AE needs current engineering context on target accounts and today gathers it by hand across GitHub, job boards and blogs. The build is shaped around one persona, an enterprise AE.', short: 'Validated against the brief and my own testing, not by interviewing a working AE. No time-saved figure is claimed.', next: 'Show it to two or three AEs and time one account by hand against Scout.'},
+  {id: 2, grp: 'Kill switches', q: 'Workflow repeated?', v: 'pass', how: 'Every account is re-read every week (daily for hot accounts) and new companies are added continuously, by hand, by bulk import or by Discovery. A one-off tool would not need a scheduler, a queue or a diff.', short: 'A weekly rhythm suits long B2B sales cycles; it is not built for one-off research.', next: 'Let each AE choose their own cadence per account.', ev: () => { const L = liveAccts(); return `${L.length} accounts in this workspace, ${(M.runs || []).length} refresh runs logged.`; }},
+  {id: 3, grp: 'Kill switches', q: 'Input available?', v: 'partial', how: 'All inputs are free and public: GitHub API, job boards, company websites, RSS, DNS, Google News. No logins, no paid data, no scraping behind walls. The site is read politely.', short: 'Not every company publishes enough. Companies with no GitHub org or job board end up Tier C with no opener, by design.', next: 'Offer paid enrichment (BuiltWith, TheirStack) as an optional source for thin accounts.', ev: () => { const L = liveAccts(), c = t => L.filter(a => a.tier === t).length; const none = L.filter(a => !a.github_org && !a.ats).length; return `Tiers here: ${c('A')} A, ${c('B')} B, ${c('C')} C. ${none} account${none === 1 ? '' : 's'} with neither a GitHub org nor a job board.`; }},
+  {id: 4, grp: 'Sizing', q: 'Output valuable?', v: 'partial', how: 'The output is a two-paragraph summary and one opener that points at a specific, checkable fact (a measured build time, a migration, a hiring push) rather than generic praise. Every sentence is cited.', short: 'Nobody has measured replies yet, so the value of the opener is unproven until it is used in real outreach. Tier C accounts get questions, not a hook.', next: 'Log "sent" and "replied" against each opener.', ev: () => { const L = liveAccts().filter(a => a.brief); const o = L.filter(a => a.brief.opener).length, p = L.filter(a => a.brief.verifier_passed).length; return `${L.length} briefs: ${o} with an opener, ${p} passed the verifier first time.`; }},
+  {id: 5, grp: 'Sizing', q: 'Impact measurable?', v: 'partial', how: 'What is measured today: "use as is", edit and reject clicks; facts marked wrong; refresh runs, durations and verifier results on Pipeline health; and Window Radar compares hooks against the won or lost stages you log.', short: 'There is no reply, meeting or pipeline number yet because there is no real outreach loop inside the product. The "what is working" table depends on the AE logging stages.', next: 'Add sent and replied buttons and a weekly outcomes report.', ev: () => { const f = M.feedback || []; const c = a => f.filter(x => x.action === a).length; return `${f.length} feedback events logged (${c('used_as_is')} used as is, ${f.filter(x => /^edited/.test(x.action)).length} edited, ${c('rejected')} rejected).`; }},
+  {id: 6, grp: 'Boundary', q: 'Failure risk OK?', v: 'pass', how: 'The worst failure is an AE sending a prospect a wrong claim. Four controls sit in front of it: every fact needs a verbatim quote, code verifies every generated sentence, inferred signals (fingerprints, news) are hedged and cannot raise the tier, and nothing is ever sent automatically.', short: 'A verbatim quote can still be stale (an old job post), and a GitHub org can be matched to the wrong company. Matches under 0.8 confidence are flagged "verify GitHub org".', next: 'Show the age of each quote beside its citation.', ev: () => { const L = liveAccts().filter(a => a.brief); const r = L.filter(a => a.brief.repaired).length, f = L.filter(a => a.brief.fallback).length; return `${L.length} live briefs: ${r} needed a repair, ${f} fell back to the safe template. Both are labelled on the account.`; }},
+  {id: 7, grp: 'Boundary', q: 'Judgment protected?', v: 'partial', how: 'Humans decide who to contact, what to say (edit or reject the opener), what is true ("mark wrong" is permanent), stage and owner. Borderline Discovery leads go to a review queue where a person clicks Add or Dismiss.', short: 'Discovery auto-add is the one place AI acts without a person. It is limited by a score threshold, a weekly cap of 5, non-destructive pruning and visible "Discovered" tags, but it is still automatic.', next: 'Offer a mode where every discovered lead needs approval.', ev: () => '<span id="ev7">Loading discovery counts…</span>'},
+  {id: 8, grp: 'Sizing', q: 'ROI worth it?', v: 'partial', how: 'Cost side: Gemini Flash only, a few calls per refresh, GitHub, Supabase and Vercel on free tiers. A refresh finishes in about a minute for an account that would take a person far longer to research by hand.', short: 'Time saved is an estimate, not a measurement, and a free Gemini key has rate limits that would matter beyond a few dozen accounts.', next: 'Time ten manual researches for a real figure, and add a usage meter.', ev: () => { const ok = (M.runs || []).filter(r => r.status === 'ok'); const s = ok.map(r => (r.duration_ms || 0) / 1000).filter(Boolean); const g = ok.map(r => r.gemini_calls || 0); const avg = a => a.length ? (a.reduce((x, y) => x + y, 0) / a.length) : 0; return `${ok.length} successful runs: about ${Math.round(avg(s))} s and ${avg(g).toFixed(1)} Gemini calls on average.`; }},
+  {id: 9, grp: 'Boundary', q: 'Owner clear?', v: 'gap', how: 'Each account has an owner label with a filter, and there is one product owner in mind (the AE who sets the seller profile, hooks and outputs).', short: 'This is the weakest check. Owner is a free-text label, not a login. There is no sign-in, and the browser uses the public key with write access to the watchlist and config tables, so anyone with the link could change settings.', next: 'Add email login, per-user permissions and a change log for settings.', ev: () => { const L = liveAccts(); const o = L.filter(a => a.owner).length; return `${o} of ${L.length} accounts have an owner label.`; }},
+];
+const liveAccts = () => M.accounts.filter(a => a.active !== false);
+const VERD = {pass: ['Pass', 'ok'], partial: ['Partial', 'warn'], gap: ['Gap', 'bad']};
+
+function renderChecks() {
+  const cnt = v => CHECKS.filter(c => c.v === v).length;
+  const groups = ['Kill switches', 'Sizing', 'Boundary'];
+  const meta = {'Kill switches': 'Any No means do not build it.', 'Sizing': 'Any No means build something smaller.', 'Boundary': 'Any No means put a human exactly here.'};
+  const card = c => { const [t, k] = VERD[c.v]; return `<div class="chk ${c.v}"><div class="ch"><span class="cn">${String(c.id).padStart(2, '0')}</span><b>${c.q}</b><span class="pill ${k}">${t}</span></div>
+    <p class="cw"><span class="lbl">How it was validated</span>${c.how}</p>
+    ${c.ev ? `<p class="cev"><span class="lbl">Numbers from this workspace</span>${c.ev()}</p>` : ''}
+    <details><summary>Where it falls short, and the next fix</summary><p><span class="lbl">Falls short</span>${c.short}</p><p><span class="lbl">Next fix</span>${c.next}</p></details></div>`; };
+  $('#chkBody').innerHTML = `
+  <p class="lead">The nine checks ask whether something deserves to be built. Here is each one answered for Tech Stack Scout, with how it was validated, live numbers from this workspace, and an honest note on where it falls short.</p>
+  <div class="chkscore"><div><b>${cnt('pass')}</b><span>Pass</span></div><div><b>${cnt('partial')}</b><span>Partial</span></div><div><b>${cnt('gap')}</b><span>Gap</span></div><p>No kill switch is a No, so the product deserves to exist. Check 03 depends on the company, and check 09 is the clearest weakness to close next.</p></div>
+  ${groups.map(g => `<h2 class="sh">${g} <span class="sub" style="display:inline;font-weight:400">· ${meta[g]}</span></h2><div class="chkgrid">${CHECKS.filter(c => c.grp === g).map(card).join('')}</div>`).join('')}
+  <h2 class="sh">Closing the gaps, in order</h2>
+  <div class="chkgrid"><div class="chk"><div class="ch"><b>1 · Sign-in and ownership (check 09)</b></div><p class="cw">Add email login, give each AE their own accounts and settings, and keep a change log. This also closes the open write access.</p></div>
+  <div class="chk"><div class="ch"><b>2 · Outcome tracking (checks 04, 05)</b></div><p class="cw">Add "sent" and "replied" to every opener and report which hooks get answers. That turns the product's value from a claim into a number.</p></div>
+  <div class="chk"><div class="ch"><b>3 · Real-user validation (checks 01, 08)</b></div><p class="cw">Time ten manual researches, then have two or three AEs use Scout for a week and compare.</p></div></div>`;
+  (async () => { try { const L = await rest('leads?select=status'); const c = s => L.filter(l => l.status === s).length; const el = $('#ev7'); if (el) el.textContent = `${c('auto_added')} leads auto-added, ${c('review')} waiting for a person, ${c('approved')} approved by hand, ${c('dismissed')} dismissed.`; } catch (e) { const el = $('#ev7'); if (el) el.textContent = 'Discovery counts are available on the live workspace.'; } })();
 }
 
 /* ---------- routing ---------- */
 function go(v) { view = v; $$('.nav').forEach(n => { if (n.dataset.view === v) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); }); $$('.view').forEach(s => s.hidden = s.dataset.v !== v); $('#side').classList.remove('open'); render(); try { history.replaceState(null, '', '#' + v); } catch (e) {} window.scrollTo({top: 0}); }
-function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
+function render() { if (!M) return; if (view === 'dashboard') renderDashboard(); if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'checks') renderChecks(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
 $$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
 $('#burger').onclick = () => $('#side').classList.toggle('open');
@@ -1204,7 +1344,7 @@ async function setOut(body) {
   tick();
 })();
 
-const start = (location.hash || '').slice(1); if (['dashboard', 'accounts', 'watchlist', 'radar', 'ask', 'settings', 'signals', 'pipeline', 'prompts', 'about'].includes(start)) view = start;
+const start = (location.hash || '').slice(1); if (['dashboard', 'accounts', 'watchlist', 'radar', 'ask', 'settings', 'signals', 'pipeline', 'prompts', 'about', 'discover', 'checks'].includes(start)) view = start;
 $$('.view').forEach(s => s.hidden = s.dataset.v !== view); $$('.nav').forEach(n => { if (n.dataset.view === view) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); });
 load();
 
