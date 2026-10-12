@@ -165,6 +165,17 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
 .feed .ev i{width:8px;height:8px;border-radius:50%;background:var(--violet);transform:translateY(-1px)}
 .toast{position:fixed;right:18px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:50;padding:12px 16px;border-radius:12px;background:#1C1840;border:1px solid var(--line-2);box-shadow:0 10px 30px rgba(0,0,0,.5);font-size:13px;transform:translateY(20px);opacity:0;transition:all .3s;max-width:calc(100% - 36px)}
 .toast.show{transform:none;opacity:1}
+.pill.manual{color:#CFF7E4;border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.14)}
+.pill.disc{color:#CFE8FF;border-color:rgba(96,165,250,.4);background:rgba(96,165,250,.14)}
+.notifs{position:fixed;top:16px;right:16px;z-index:60;display:flex;flex-direction:column;gap:10px;width:min(360px,calc(100% - 32px))}
+.ncard{position:relative;padding:14px 16px 14px;border-radius:14px;background:#1C1840;border:1px solid var(--line-2);border-left:4px solid #34D399;box-shadow:0 14px 40px rgba(0,0,0,.55);animation:nin .35s ease both;font-size:13px}
+.ncard.bad{border-left-color:#F87171}.ncard.out{opacity:0;transform:translateX(30px);transition:all .25s}
+.ncard .nt{font-weight:700;font-size:14px;color:#EEEDFF;padding-right:18px}.ncard .nb{margin-top:6px;color:var(--ink-2);line-height:1.45}
+.ncard .nm{margin-bottom:6px}.ncard .nq{font-style:italic}.ncard .nw{margin-top:6px;font-size:11.5px;color:#7EE2B8;font-weight:600}
+.ncard .nx{position:absolute;top:8px;right:10px;background:none;border:0;color:var(--ink-2);font-size:18px;cursor:pointer}
+.ncard .nopen{margin-top:10px}
+@keyframes nin{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
+
 /* motion */
 .rise{animation:rise .7s cubic-bezier(.2,.8,.2,1) both}
 @keyframes rise{from{opacity:.001;transform:translateY(14px)}to{opacity:1;transform:none}}
@@ -331,6 +342,7 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
     <!-- WATCHLIST -->
     <section data-v="watchlist" class="view grid" hidden>
       <div class="ph"><h1>Watchlist</h1><span class="sub" id="wlSub"></span></div>
+      <article class="glass card rise" id="wlNewCard" hidden><div class="hd"><h3>Added by you</h3><span class="sub">Companies you put in by hand, newest first</span></div><div id="wlNew"></div></article>
       <article class="glass card rise">
         <div class="hd"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 4v12M4 10h12"/></svg></span><h3>Add a company</h3></div>
         <form class="form" id="addForm" autocomplete="off">
@@ -467,20 +479,22 @@ async function rest(path, opts = {}) { const r = await fetch(CFG.url + '/rest/v1
 async function loadLive() {
   const acc = await rest(`v_accounts_ws?select=*&is_demo=eq.${isDemoWs()}&order=name`);
   const ids = acc.map(a => a.id); const inIds = ids.length ? `account_id=in.(${ids.join(',')})` : 'account_id=is.null';
-  const [runs, events, fb, snaps, radar] = await Promise.all([
+  const [runs, events, fb, snaps, radar, src] = await Promise.all([
     rest(`pipeline_runs?select=*&${inIds}&order=started_at.desc&limit=300`),
     rest(`events?select=*&${inIds}&order=created_at.desc&limit=80`),
     rest(`feedback?select=action,created_at,account_id&${inIds}&order=created_at.desc&limit=500`),
     rest(`snapshots?select=account_id,taken_at,ci_median_min,eng_roles,platform_roles&${inIds}&order=taken_at.asc&limit=2000`),
     rest(`radar?select=*&${inIds}`).catch(() => []),
+    rest(`watchlist?select=id,lead_source,lead_score&lead_source=not.is.null`).catch(() => []),
   ]);
+  const lsrc = Object.fromEntries(src.map(s => [s.id, s]));
   const snapIds = acc.map(a => a.snapshot_id).filter(Boolean);
   const sigs = snapIds.length ? await rest(`signals?select=*&snapshot_id=in.(${snapIds.join(',')})&order=id`) : [];
   const name = Object.fromEntries(acc.map(a => [a.id, a.name]));
   const accounts = acc.map(a => {
     const hist = snaps.filter(s => s.account_id === a.id);
     return {
-      id: a.id, name: a.name, domain: a.domain, persona: a.persona, stage: a.stage, hot: !!a.hot, owner: a.owner || '', radar: radar.find(r => r.account_id === a.id) || null, active: a.active, status: a.refresh_status, error: a.refresh_error,
+      id: a.id, name: a.name, domain: a.domain, created: a.created_at, origin: lsrc[a.id] ? 'discovery' : /^Added manually/.test(a.notes || '') ? 'manual' : 'seed', lead_source: lsrc[a.id]?.lead_source || null, lead_score: lsrc[a.id]?.lead_score ?? null, persona: a.persona, stage: a.stage, hot: !!a.hot, owner: a.owner || '', radar: radar.find(r => r.account_id === a.id) || null, active: a.active, status: a.refresh_status, error: a.refresh_error,
       last_refreshed: a.last_refreshed_at, github_org: a.github_org, ats_provider: a.ats_provider || '', ats_slug: a.ats_slug || '', careers_url: a.careers_url || '', coverage: a.coverage || null, ats: a.ats_provider ? `${a.ats_provider}:${a.ats_slug}` : null, blog: a.blog_feed,
       mapping_confidence: +a.mapping_confidence || 0, tier: a.evidence_tier || 'C', icp: +a.icp_fit || 0, why_now: +a.why_now || 0,
       languages: a.languages || {}, ci: a.ci_median_min != null ? +a.ci_median_min : null, ci_repo: a.ci_repo, eng_roles: a.eng_roles, platform_roles: a.platform_roles,
@@ -511,6 +525,41 @@ async function load() {
   const busy = isLive && M.accounts.some(a => a.status === 'pending' || a.status === 'queued' || a.status === 'running');
   clearTimeout(poll); if (busy) poll = setTimeout(load, 8000);
 }
+
+/* ---------- origin badges + research-done notifications ---------- */
+const BUSY = ['pending', 'queued', 'running'];
+const isNew = a => a.created && Date.now() - new Date(a.created).getTime() < 3 * 864e5;
+const originPill = a => a.demo ? '' : a.origin === 'manual' ? `<span class="pill manual" title="You added this company by hand">Added by you${isNew(a) ? ' · NEW' : ''}</span>` : a.origin === 'discovery' ? `<span class="pill disc" title="Found by lead discovery (${esc(a.lead_source || '')}, fit ${a.lead_score != null ? (+a.lead_score).toFixed(2) : '?'})">Discovered${isNew(a) ? ' · NEW' : ''}</span>` : '';
+const NOTIF = {prev: null, shown: new Set()};
+function notify(kind, title, body, id) {
+  let box = $('#notifs'); if (!box) { box = document.createElement('div'); box.id = 'notifs'; box.className = 'notifs'; document.body.appendChild(box); }
+  const c = document.createElement('div'); c.className = 'ncard ' + kind; c.setAttribute('role', 'status');
+  c.innerHTML = `<button class="nx" aria-label="Dismiss">×</button><div class="nt">${esc(title)}</div><div class="nb">${body}</div>${id ? '<button class="btn nopen">Open account</button>' : ''}`;
+  const close = () => { c.classList.add('out'); setTimeout(() => c.remove(), 250); };
+  c.querySelector('.nx').onclick = close; if (id) c.querySelector('.nopen').onclick = () => { selId = id; close(); go('accounts'); };
+  box.appendChild(c); setTimeout(close, 20000);
+}
+async function pollNotifs() {
+  if (!live || document.hidden) return;
+  try {
+    const rows = await rest('watchlist?select=id,name,refresh_status,refresh_error,lead_source,notes,created_at&is_demo=eq.false&active=eq.true');
+    const now = Object.fromEntries(rows.map(r => [r.id, r]));
+    if (NOTIF.prev) {
+      const done = rows.filter(r => !BUSY.includes(r.refresh_status) && !NOTIF.shown.has(r.id + r.refresh_status) && (BUSY.includes(NOTIF.prev[r.id]?.refresh_status) || (!NOTIF.prev[r.id] && Date.now() - new Date(r.created_at).getTime() < 240000)));
+      for (const r of done) {
+        NOTIF.shown.add(r.id + r.refresh_status);
+        const who = r.lead_source ? 'Found by discovery' : /^Added manually/.test(r.notes || '') ? 'Added by you' : '';
+        if (r.refresh_status === 'error') { notify('bad', `Research failed: ${r.name}`, `${esc((r.refresh_error || 'unknown error').slice(0, 140))}${who ? `<div class="nw">${who}</div>` : ''}`, r.id); continue; }
+        let d = null; try { d = (await rest(`v_accounts_ws?id=eq.${r.id}&select=evidence_tier,icp_fit,why_now,opener,discovery`))[0]; } catch (e) {}
+        const line = d?.opener ? `“${esc(d.opener)}”` : 'Limited public signal, so no opener was written. Discovery questions are ready instead.';
+        notify('ok', `${r.name} is researched`, `<div class="nm"><span class="pill ${d?.evidence_tier || 'C'}">Tier ${d?.evidence_tier || 'C'}</span> ICP fit ${(+d?.icp_fit || 0).toFixed(2)} · why-now ${(+d?.why_now || 0).toFixed(2)}</div><div class="nq">${line}</div>${who ? `<div class="nw">${who}</div>` : ''}`, r.id);
+      }
+      if (done.length) load();
+    }
+    NOTIF.prev = now;
+  } catch (e) { /* silent: the next poll tries again */ }
+}
+setInterval(pollNotifs, 7000);
 
 /* ---------- derived ---------- */
 let OWN = (() => { try { return localStorage.getItem('scout.owner') || ''; } catch (e) { return ''; } })();
@@ -709,7 +758,7 @@ function renderAccounts() {
   let rows = act().filter(a => (!ft || a.tier === ft) && (!q || (a.name + ' ' + Object.keys(a.languages || {}).join(' ') + ' ' + a.signals.map(s => s.tech).join(' ') + ' ' + (a.brief?.hook || '')).toLowerCase().includes(q)));
   rows.sort(fs === 'fit' ? (a, b) => b.icp - a.icp : fs === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.why_now * b.icp - a.why_now * a.icp);
   if (!selId || !rows.find(r => r.id === selId)) selId = rows[0]?.id;
-  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${['pending', 'queued', 'running'].includes(a.status) ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td><td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="5"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
+  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${originPill(a) ? ' ' + originPill(a) : ''}${['pending', 'queued', 'running'].includes(a.status) ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td><td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="5"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
   $$('#accTable tbody tr[data-id]').forEach(tr => { const f = () => { selId = tr.dataset.id; renderAccounts(); }; tr.onclick = f; tr.onkeydown = e => e.key === 'Enter' && f(); });
   renderDetail(rows.find(r => r.id === selId));
 }
@@ -717,7 +766,7 @@ function renderDetail(a) {
   const d = $('#detail'); if (!a) { d.innerHTML = ''; return; }
   const b = a.brief || {}; const isLive = M.mode === 'live';
   const langs = Object.entries(a.languages || {}).map(([k, v], i) => `<span class="pill" style="border-color:${PAL[i]}55"><i style="width:7px;height:7px;border-radius:50%;background:${PAL[i]};display:inline-block"></i>${esc(k)} ${v}%</span>`).join(' ');
-  const flags = [a.mapping_confidence < .8 && a.github_org ? `<span class="pill bad">verify GitHub org (${a.mapping_confidence.toFixed(2)})</span>` : '', a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">last refresh failed</span>` : '', b.fallback ? '<span class="pill warn">template fallback</span>' : '', b.repaired ? '<span class="pill warn">repaired once</span>' : '', b.verifier_passed ? '<span class="pill ok">verifier passed</span>' : '', a.competitor ? `<span class="pill warn">incumbent: ${esc(a.competitor)}</span>` : '', a.stage ? `<span class="pill">${esc(a.stage)}</span>` : ''].join(' ');
+  const flags = [originPill(a), a.mapping_confidence < .8 && a.github_org ? `<span class="pill bad">verify GitHub org (${a.mapping_confidence.toFixed(2)})</span>` : '', a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">last refresh failed</span>` : '', b.fallback ? '<span class="pill warn">template fallback</span>' : '', b.repaired ? '<span class="pill warn">repaired once</span>' : '', b.verifier_passed ? '<span class="pill ok">verifier passed</span>' : '', a.competitor ? `<span class="pill warn">incumbent: ${esc(a.competitor)}</span>` : '', a.stage ? `<span class="pill">${esc(a.stage)}</span>` : ''].join(' ');
   const summary = b.summary ? b.summary.map(p => `<p>${p.map(s => esc(s.text) + citeHTML(s.cites)).join(' ')}</p>`).join('') : '';
   const facts = a.signals.length ? a.signals.map(s => `<div class="fact" id="fact-${esc(s.fid)}"><span class="fid">${esc(s.fid)}</span><span><b style="color:#EEEDFF">${esc(s.tech)}</b> <span class="sub" style="display:inline">${esc(s.category)} · ${esc(s.source.replace('_', ' '))}${s.strength && s.strength !== 'narrative' ? ' · ' + esc(s.strength) : ''}</span></span><span class="pill ${s.state === 'noise' ? '' : s.state.includes('migrating') || s.state === 'hiring_only' ? 'warn' : 'ok'}">${esc(s.state.replace('_', ' '))} · ${(+s.confidence).toFixed(2)}</span><span class="q">“${esc(s.quote)}” ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">source ↗</a>` : ''} ${isLive && s.state !== 'noise' && !['hiring', 'github activity', 'blog post'].includes(s.tech) ? `<button class="btn" style="padding:2px 8px;font-size:11px" data-wrong="${esc(s.tech)}">Mark wrong</button>` : ''}</span></div>`).join('') : '<div class="empty">No facts yet. The first refresh fills this in.</div>';
   const h = a.history || {dates: []};
@@ -780,7 +829,11 @@ async function refreshAccount(a) {
 function renderWatchlist() {
   const A = M.accounts; $('#wlSub').textContent = `${act().length} active · edits here write to the Supabase table watchlist`;
   const st = a => ['pending', 'queued', 'running'].includes(a.status) ? `<span class="status"><span class="spin"></span>${a.status === 'pending' ? 'waiting' : a.status}</span>` : a.status === 'error' ? `<span class="pill bad" title="${esc(a.error)}">error</span>` : `<span class="pill ok">ok</span>`;
-  $('#wlTable tbody').innerHTML = A.filter(a => !OWN || a.owner === OWN).map(a => `<tr><td><b style="color:#EEEDFF">${esc(a.name)}</b><div class="sub">${esc(a.domain)}</div></td><td>${a.github_org ? `<a style="color:var(--cyan)" href="https://github.com/${esc(a.github_org)}" target="_blank" rel="noopener">${esc(a.github_org)}</a>` : '—'}</td><td>${esc(a.ats || '—')}</td><td>${a.blog ? '<span class="pill ok">found</span>' : '—'}</td><td><button class="hot" data-hot="${a.id}" aria-pressed="${a.hot}" title="Hot accounts refresh daily instead of weekly" aria-label="Hot account">${a.hot ? '★' : '☆'}</button></td><td><input class="ownin" data-owner="${a.id}" value="${esc(a.owner || '')}" placeholder="—" style="width:96px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:4px 7px;font:12.5px var(--f)"></td><td>${esc(a.persona)}</td><td>${a.active === false ? '<span class="pill">removed</span>' : st(a)}</td><td>${ago(a.last_refreshed)}</td><td>${a.active === false ? `<button class="btn" data-restore="${a.id}">Restore</button>` : `<button class="btn bad" data-remove="${a.id}">Remove</button>`}</td></tr>`).join('');
+  $('#wlTable tbody').innerHTML = A.filter(a => !OWN || a.owner === OWN).map(a => `<tr><td><b style="color:#EEEDFF">${esc(a.name)}</b> ${originPill(a)}<div class="sub">${esc(a.domain)}</div></td><td>${a.github_org ? `<a style="color:var(--cyan)" href="https://github.com/${esc(a.github_org)}" target="_blank" rel="noopener">${esc(a.github_org)}</a>` : '—'}</td><td>${esc(a.ats || '—')}</td><td>${a.blog ? '<span class="pill ok">found</span>' : '—'}</td><td><button class="hot" data-hot="${a.id}" aria-pressed="${a.hot}" title="Hot accounts refresh daily instead of weekly" aria-label="Hot account">${a.hot ? '★' : '☆'}</button></td><td><input class="ownin" data-owner="${a.id}" value="${esc(a.owner || '')}" placeholder="—" style="width:96px;background:transparent;border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:4px 7px;font:12.5px var(--f)"></td><td>${esc(a.persona)}</td><td>${a.active === false ? '<span class="pill">removed</span>' : st(a)}</td><td>${ago(a.last_refreshed)}</td><td>${a.active === false ? `<button class="btn" data-restore="${a.id}">Restore</button>` : `<button class="btn bad" data-remove="${a.id}">Remove</button>`}</td></tr>`).join('');
+  const mine = A.filter(a => a.origin === 'manual' && !a.demo).sort((x, y) => new Date(y.created) - new Date(x.created)).slice(0, 15);
+  $('#wlNewCard').hidden = !mine.length;
+  $('#wlNew').innerHTML = mine.map(a => `<div class="fact"><span class="fid">${isNew(a) ? 'NEW' : '·'}</span><span><b>${esc(a.name)}</b> <span class="sub" style="display:inline">${esc(a.domain)} · added ${fmtDate(a.created)}</span><br><span class="sub">${BUSY.includes(a.status) ? 'researching…' : a.status === 'error' ? 'research failed' : `researched · Tier ${a.tier} · fit ${a.icp.toFixed(2)}${a.brief?.opener ? ' · opener ready' : ' · discovery questions'}`}</span></span><span style="margin-left:auto"><button class="btn" data-openacc="${a.id}">Open</button></span></div>`).join('');
+  $$('[data-openacc]').forEach(b => b.onclick = () => { selId = b.dataset.openacc; go('accounts'); });
   const owners = [...new Set(M.accounts.map(a => a.owner).filter(Boolean))].sort();
   $('#ownerFilter').innerHTML = '<option value="">All owners</option>' + owners.map(o => `<option ${o === OWN ? 'selected' : ''}>${esc(o)}</option>`).join('');
   try { $('#meName').value = localStorage.getItem('scout.me') || ''; } catch (e) {}
@@ -807,7 +860,7 @@ $('#addForm').addEventListener('submit', async e => {
   try {
     const ex = await dupInfo(domain);
     if (ex) { toast(ex.active === false ? `${ex.name} is on the list but removed. Use Restore in the table below.` : `${ex.name} (${domain}) is already on the watchlist.`); $('#addBtn').disabled = false; return; }
-    await rest('watchlist', {method: 'POST', body: JSON.stringify({name, domain, persona: $('#fPersona').value, stage: $('#fStage').value, owner: ($('#meName')?.value || '').trim() || null}), headers: {Prefer: 'return=minimal'}});
+    await rest('watchlist', {method: 'POST', body: JSON.stringify({name, domain, persona: $('#fPersona').value, stage: $('#fStage').value, owner: ($('#meName')?.value || '').trim() || null, notes: 'Added manually in the console'}), headers: {Prefer: 'return=minimal'}});
     toast(`${name} added. Research starts now; it takes about a minute.`); e.target.reset(); load();
   } catch (err) { toast(/duplicate|23505/.test(err.message) ? `${domain} is already on the watchlist.` : 'Could not add: ' + err.message); }
   $('#addBtn').disabled = false;
@@ -823,7 +876,7 @@ $('#bulkBtn').onclick = async () => {
     const parts = ln.split(/[,\t;|]/).map(x => x.trim()).filter(Boolean); let name = '', dom = '';
     if (parts.length >= 2) { name = parts[0]; dom = normDomain(parts[1]); } else if (parts.length === 1) { dom = normDomain(parts[0]); name = niceName(dom); }
     if (!validDomain(dom)) { bad.push(ln); continue; } if (rows.some(r => r.domain === dom)) continue;
-    rows.push({name: name || niceName(dom), domain: dom, persona: $('#bulkPersona').value, stage: $('#bulkStage').value, owner: ($('#meName')?.value || '').trim() || null});
+    rows.push({name: name || niceName(dom), domain: dom, persona: $('#bulkPersona').value, stage: $('#bulkStage').value, owner: ($('#meName')?.value || '').trim() || null, notes: 'Added manually in the console (bulk import)'});
   }
   if (!rows.length) { toast(bad.length ? 'Each line needs a website, like “Stripe, stripe.com”' : 'Paste at least one company'); return; }
   $('#bulkBtn').disabled = true;
