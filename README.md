@@ -27,12 +27,13 @@ For every company on the Supabase `watchlist`, the system reads **live public da
 | 15 | Sign-in + team list | Supabase Auth, tables `team_members`, functions `is_member()`, `is_admin()` | Anyone can read; only approved teammates can change anything. Admins add teammates in Settings → Team. Owners on accounts are signed-in people. |
 | 16 | Outreach tracking | table `outreach`, RPCs `outreach_log`, `outreach_set_status`, `outreach_stats` | "Mark as sent" and "Got a reply / Meeting booked / No reply" buttons on each opener; dashboard shows sent, reply rate and reply rate per hook. Feeds Nine checks 04 and 05 with real numbers. |
 | 17 | Email sending | Edge Function `scout-email` (`scout-email.ts`), Resend | Compose from the opener, confirm, send from the platform; reply-to is the signed-in teammate; every send is logged. API key only in the `RESEND_API_KEY` secret. |
-| 18 | Console | `index.html` on Vercel | Dashboard, accounts with cited briefs and coverage, watchlist, Window Radar, Discovery, Ask, signal ledger, pipeline health, Settings, feedback. |
+| 18 | Solution lenses | tables `solution_lenses`, `lens_openers`; Edge Function `scout-lens` (`scout-lens.ts`) | Five hypothetical products (BuildCache, Previewly, PlatformPilot, SignalDesk, CodePilot Teams). Pick one on Accounts to re-rank by fit with cited "why it fits" reasons, or see the best entry product per account on the dashboard. Fit is computed by code from stored evidence; only the product-specific opener uses Gemini and it passes a verifier. Rules are editable in Settings → Solution lenses. |
+| 19 | Console | `index.html` on Vercel | Dashboard, accounts with cited briefs and coverage, watchlist, Window Radar, Discovery, Ask, signal ledger, pipeline health, Settings, feedback. |
 
 ## Files
 
 - `index.html` — the console (static; talks to Supabase REST with the public anon key, which only has the RLS rights above).
-- `scout-refresh.ts`, `scout-push.ts`, `scout-digest.ts`, `scout-ask.ts`, `scout-discover.ts`, `scout-email.ts` — the six Supabase Edge Functions (deploy each with `supabase functions deploy <name>`; JWT verification on).
+- `scout-refresh.ts`, `scout-push.ts`, `scout-digest.ts`, `scout-ask.ts`, `scout-discover.ts`, `scout-email.ts`, `scout-lens.ts` — the seven Supabase Edge Functions (deploy each with `supabase functions deploy <name>`; JWT verification on).
 - `supabase-schema.sql` — base tables, RLS, view, trigger, cron. `supabase-schema-v8-auth-outreach.sql` — team list, sign-in checks, outreach, lockdown. `supabase-schema-v2-v7.sql` — outputs, v7 columns, lead discovery tables, RPCs and cron. `config-seed.sql` — default config rows.
 - `vercel.json` — static hosting config.
 

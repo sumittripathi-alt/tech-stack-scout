@@ -272,6 +272,14 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
 .tabs{display:flex;gap:6px;flex-wrap:wrap}.tabs button[aria-pressed=true]{border-color:var(--violet);color:var(--ink);background:rgba(139,92,246,.18)}
 .hot{cursor:pointer;border:0;background:none;font-size:15px;color:var(--muted)}.hot[aria-pressed=true]{color:var(--orange)}
 .note{padding:10px 12px;border-radius:10px;border:1px dashed var(--line-2);color:var(--ink-2);font-size:12.5px}
+
+.lenscard{border:1px solid color-mix(in srgb,var(--lc) 45%,transparent);background:color-mix(in srgb,var(--lc) 9%,transparent);border-radius:14px;padding:14px;margin:10px 0;display:grid;gap:8px}
+.lenscard .lhd{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.lenscard .lscore{text-align:right}.lenscard .lscore b{font-size:26px;color:var(--lc);display:block;line-height:1}
+.lwhy{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13px}
+.lgrid td.lcell{cursor:pointer;background:linear-gradient(90deg,color-mix(in srgb,var(--lc) 38%,transparent) var(--p),transparent var(--p));font-variant-numeric:tabular-nums}
+.lgrid td.lcell.best{font-weight:800;color:#fff;outline:1px solid var(--lc);outline-offset:-2px;border-radius:6px}
+.lgrid td.lcell:hover,.lgrid td.lcell:focus{outline:1px solid var(--lc)}
 </style>
 </head>
 <body>
@@ -356,6 +364,7 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
       </div>
 
       <article class="glass card rise" id="outCard" hidden></article>
+      <article class="glass card rise" id="lensGrid" hidden></article>
 
       <div class="grid r2">
         <article class="glass card rise" style="animation-delay:.26s">
@@ -389,6 +398,7 @@ select,input[type=text],input[type=url]{background:rgba(8,6,24,.5);border:1px so
     <section data-v="accounts" class="view grid" hidden>
       <div class="ph"><h1>Accounts</h1>
         <select id="fTier" aria-label="Evidence tier"><option value="">All tiers</option><option>A</option><option>B</option><option>C</option></select>
+        <select id="fLens" aria-label="Solution lens" hidden></select>
         <select id="fSort" aria-label="Sort"><option value="why">Sort: why-now × fit</option><option value="fit">Sort: ICP fit</option><option value="name">Sort: name</option></select>
       </div>
       <div class="acct">
@@ -699,6 +709,7 @@ async function rest(path, opts = {}) {
 }
 
 async function loadLive() {
+  await loadLenses();
   const acc = await rest(`v_accounts_ws?select=*&is_demo=eq.${isDemoWs()}&order=name`);
   const ids = acc.map(a => a.id); const inIds = ids.length ? `account_id=in.(${ids.join(',')})` : 'account_id=is.null';
   const [runs, events, fb, snaps, radar, src] = await Promise.all([
@@ -975,12 +986,92 @@ function renderDashboard() {
 
 /* ---------- accounts ---------- */
 function citeHTML(ids) { return (ids || []).map(id => `<span class="cite" data-fid="${esc(id)}" tabindex="0">${esc(id)}</span>`).join(''); }
+/* ---------- solution lenses: hypothetical products, fit computed by code from stored evidence ---------- */
+let LENSES = []; let LENS = (() => { try { return localStorage.getItem('scout.lens') || ''; } catch (e) { return ''; } })();
+const LFACTOR = {active: 1, emerging: .8, migrating_to: .9, migrating_from: 1, legacy: .6, contested: .5, hiring_only: .6};
+const LMID = {ci: 'M1', platform_roles: 'M2', eng_roles: 'M3', active30: 'M4', langs: 'M5', cloud_count: 'M6'};
+const LMTXT = {M1: 'CI median in minutes, measured from recent workflow runs', M2: 'open platform engineering roles', M3: 'open engineering roles', M4: 'repositories active in the last 30 days', M5: 'programming languages in public repositories', M6: 'cloud providers seen'};
+function lensCtx(a) {
+  const sig = (a.signals || []).filter(s => s.state !== 'noise');
+  const cloud = new Set(sig.filter(s => s.category === 'cloud').map(s => s.tech)).size; const langs = Object.keys(a.languages || {}).length;
+  return {signals: sig, metrics: {ci: a.ci != null ? +a.ci : null, platform_roles: a.platform_roles, eng_roles: a.eng_roles, active30: a.active30, langs: langs || null, cloud_count: cloud || null}};
+}
+function lensFit(l, a) {
+  const c = lensCtx(a); let s = +l.base || 0; const reasons = [];
+  for (const r of l.rules || []) {
+    if (r.k === 'tech') {
+      const hit = c.signals.filter(g => (r.techs || []).includes(g.tech)); if (!hit.length) continue;
+      const uniq = [...new Map(hit.map(g => [g.tech, g])).values()].slice(0, 2);
+      const f = Math.max(...uniq.map(g => LFACTOR[g.state] ?? .6)); const w = r.w * f; s += w;
+      reasons.push({text: r.why.replace('{tech}', uniq.map(g => g.tech).join(' and ')) + (uniq.every(g => g.state === 'hiring_only') ? ' (job posts only)' : ''), cites: uniq.map(g => g.fid), w});
+    } else if (r.k === 'metric') {
+      const v = c.metrics[r.m]; if (v == null) continue;
+      if (v >= r.gte && (r.lt == null || v < r.lt)) { s += r.w; reasons.push({text: r.why.replace('{v}', String(v)), cites: [LMID[r.m]], w: r.w}); }
+    }
+  }
+  reasons.sort((x, y) => y.w - x.w);
+  return {score: Math.min(1, Math.round(s * 100) / 100), reasons};
+}
+const lensCite = ids => (ids || []).map(id => /^M\d$/.test(id) ? `<span class="cite" title="${esc(LMTXT[id] || '')}">${esc(id)}</span>` : citeHTML([id])).join('');
+const LENSOP = {};
+async function loadLenses() { try { LENSES = await rest('solution_lenses?select=*&enabled=eq.true&order=position'); } catch (e) { LENSES = []; } if (LENS && !LENSES.find(l => l.id === LENS)) LENS = ''; }
+function lensCardHTML(a) {
+  const l = LENSES.find(x => x.id === LENS); if (!l) return '';
+  const f = lensFit(l, a); const limited = !f.reasons.length || (a.tier === 'C' && f.score < .3);
+  return `<div class="lenscard" style="--lc:${esc(l.color || '#7c6cf0')}">
+    <div class="lhd"><div><b>${esc(l.name)}</b> <span class="pill">hypothetical product</span><div class="sub">${esc(l.tagline || '')}</div></div><div class="lscore"><b>${f.score.toFixed(2)}</b><span class="sub">fit</span></div></div>
+    ${f.reasons.length ? `<ul class="lwhy">${f.reasons.slice(0, 5).map(r => `<li>${esc(r.text)}${lensCite(r.cites)}</li>`).join('')}</ul>` : '<p class="sub">Nothing in this account\'s public data matches this product, so there is nothing true to say about it.</p>'}
+    ${limited && f.reasons.length ? '<p class="sub">Limited evidence for this lens. Treat the score as a weak hint.</p>' : ''}
+    <div id="lensOpen"></div>
+    <div class="toolbar">${M.mode === 'live' && !a.demo ? `<button class="btn primary" id="lensGo" ${f.reasons.length ? '' : 'disabled'}>Write opener for ${esc(l.name)}</button>` : '<span class="sub">Openers are written on the live workspace.</span>'}<span class="sub">Fit is computed by code from the evidence above. Only the opener uses Gemini, and it is verified.</span></div></div>`;
+}
+function lensOpenHTML(r) {
+  if (!r) return '';
+  return `<div class="opener"><span>${esc(r.opener)}</span>${lensCite(r.cites)}</div><div class="toolbar"><span class="pill ${r.used_fallback ? 'warn' : 'ok'}">${r.used_fallback ? 'template fallback' : 'verifier passed'}</span><span class="sub">written ${ago(r.created_at)}${r.created_by ? ' by ' + esc(r.created_by.split('@')[0]) : ''}</span><button class="btn" id="lensCopy">Copy</button></div>`;
+}
+async function wireLens(a) {
+  const l = LENSES.find(x => x.id === LENS); if (!l || !$('#lensOpen')) return; const key = a.id + '|' + l.id; const box = $('#lensOpen');
+  const show = r => { box.innerHTML = lensOpenHTML(r); const c = $('#lensCopy'); if (c) c.onclick = () => { navigator.clipboard?.writeText(r.opener); toast('Copied'); }; };
+  if (LENSOP[key] !== undefined) show(LENSOP[key]); else { try { const [r] = await rest(`lens_openers?select=*&account_id=eq.${a.id}&lens_id=eq.${l.id}&order=created_at.desc&limit=1`); LENSOP[key] = r || null; } catch (e) { LENSOP[key] = null; } if (LENS === l.id && $('#lensOpen')) show(LENSOP[key]); }
+  const go = $('#lensGo'); if (!go) return;
+  go.onclick = async () => {
+    if (!AUTH.me) { if (!AUTH.s) openAuth('in'); toast(AUTH.s ? 'Your account is not on the team list yet.' : 'Sign in as a team member to write openers.'); return; }
+    go.disabled = true; const t = go.textContent; go.innerHTML = '<span class="spin" style="display:inline-block"></span> Writing…';
+    try { const r = await fetch(CFG.url + '/functions/v1/scout-lens', {method: 'POST', headers: H(), body: JSON.stringify({account_id: a.id, lens_id: l.id})}); const j = await r.json(); if (!r.ok) throw new Error(j.error || r.status); if (!j.ok) throw new Error(j.error || 'No opener'); LENSOP[key] = {opener: j.opener, cites: j.cites, used_fallback: j.fallback, created_at: new Date().toISOString(), created_by: AUTH.me.email}; if (LENS === l.id) show(LENSOP[key]); toast(j.fallback ? 'Opener written from a template because the draft failed checks' : 'Opener written and verified'); }
+    catch (e) { toast('Could not write opener: ' + e.message); }
+    go.disabled = false; go.textContent = t;
+  };
+}
+function lensPick(id) { LENS = id; try { localStorage.setItem('scout.lens', id); } catch (e) {} }
+function renderLensGrid() {
+  const el = $('#lensGrid'); if (!el) return; if (!LENSES.length || M.mode !== 'live') { el.hidden = true; return; } el.hidden = false;
+  const rows = act().slice().sort((a, b) => b.why_now * b.icp - a.why_now * a.icp).slice(0, 10).map(a => ({a, f: LENSES.map(l => lensFit(l, a))}));
+  el.innerHTML = `<div class="hd"><h3>Best entry product, by account</h3><span class="sub">Fit of each hypothetical product, computed from the same cited evidence. Click a cell to open it.</span></div>
+  <div class="tw"><table class="lgrid"><thead><tr><th>Account</th>${LENSES.map(l => `<th class="num" style="color:${esc(l.color)}">${esc(l.name)}</th>`).join('')}</tr></thead><tbody>${rows.map(({a, f}) => { const best = Math.max(...f.map(x => x.score)); return `<tr><td><b style="color:#EEEDFF">${esc(a.name)}</b></td>${f.map((x, i) => `<td class="num lcell ${x.score === best && x.reasons.length ? 'best' : ''}" data-a="${a.id}" data-l="${esc(LENSES[i].id)}" style="--lc:${esc(LENSES[i].color)};--p:${Math.round(x.score * 70)}%" tabindex="0">${x.reasons.length ? x.score.toFixed(2) : '—'}</td>`).join('')}</tr>`; }).join('')}</tbody></table></div>`;
+  $$('.lcell', el).forEach(c => { const f = () => { lensPick(c.dataset.l); selId = c.dataset.a; go('accounts'); }; c.onclick = f; c.onkeydown = e => e.key === 'Enter' && f(); });
+}
+async function setLens(body) {
+  const rows = await rest('solution_lenses?select=*&order=position');
+  body.innerHTML = `<p class="sub">Each lens is a hypothetical product the AE could sell. Fit is computed by code from evidence already collected, so changing a lens re-ranks accounts straight away and needs no new research. Rules are JSON: <code>{"k":"tech","techs":["kubernetes"],"w":0.2,"why":"runs {tech}"}</code> or <code>{"k":"metric","m":"ci","gte":15,"w":0.25,"why":"CI median of {v} min"}</code>. Metrics: ci, platform_roles, eng_roles, active30, langs, cloud_count.</p>
+  <div class="sset">${rows.map(l => `<div class="glass card lensed" data-id="${esc(l.id)}"><div class="hd"><b>${esc(l.name)}</b><span class="end"><label class="sub"><input type="checkbox" class="lOn" ${l.enabled ? 'checked' : ''}> shown</label></span></div>
+    <div class="grid k3" style="gap:10px"><label>Name<input class="lName" value="${esc(l.name)}"></label><label>Tagline<input class="lTag" value="${esc(l.tagline || '')}"></label><label>Base score<input class="lBase" type="number" step="0.01" min="0" max="1" value="${l.base}"></label></div>
+    <label>What this product does (the opener writer uses this)<textarea class="lPitch" style="min-height:56px">${esc(l.pitch)}</textarea></label>
+    <label>Rules (JSON)<textarea class="lRules" style="min-height:120px;font-family:var(--mono);font-size:11.5px">${esc(JSON.stringify(l.rules, null, 1))}</textarea></label>
+    <div class="toolbar"><button class="btn primary lSave">Save lens</button></div></div>`).join('')}
+  <div class="glass card"><div class="hd"><b>Add a lens</b></div><form class="form" id="lNew"><label>Id (short, no spaces)<input id="nlId" required placeholder="secrets-vault"></label><label>Name<input id="nlName" required></label><label>Tagline<input id="nlTag"></label><label>What it does<input id="nlPitch" required placeholder="a hypothetical product that…"></label><button class="btn primary" type="submit">Add lens</button></form></div></div>`;
+  $$('.lensed', body).forEach(c => { const id = c.dataset.id; $('.lSave', c).onclick = async () => { const rules = jsonOr($('.lRules', c).value, null); if (!Array.isArray(rules)) { toast('Rules must be a JSON list'); return; } if (await save(`solution_lenses?id=eq.${encodeURIComponent(id)}`, 'PATCH', {name: $('.lName', c).value.trim(), tagline: $('.lTag', c).value.trim(), base: +$('.lBase', c).value || 0, pitch: $('.lPitch', c).value.trim(), rules, enabled: $('.lOn', c).checked, updated_at: new Date().toISOString()}, 'Lens saved. Fit updates now.')) { await loadLenses(); render(); } }; });
+  $('#lNew').onsubmit = async e => { e.preventDefault(); const id = $('#nlId').value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-'); if (await save('solution_lenses', 'POST', {id, name: $('#nlName').value.trim(), tagline: $('#nlTag').value.trim(), pitch: $('#nlPitch').value.trim(), rules: [], position: rows.length + 1}, 'Lens added. Now add rules to it.')) { await loadLenses(); renderSettings(); } };
+}
+
 function renderAccounts() {
-  const q = $('#q').value.toLowerCase(), ft = $('#fTier').value, fs = $('#fSort').value;
+  const q = $('#q').value.toLowerCase(), ft = $('#fTier').value, fs = $('#fSort').value; const L = LENSES.find(x => x.id === LENS);
+  const fl = $('#fLens'); if (fl) { fl.hidden = !LENSES.length || M.mode !== 'live'; fl.innerHTML = '<option value="">Solution: all products</option>' + LENSES.map(l => `<option value="${esc(l.id)}" ${l.id === LENS ? 'selected' : ''}>${esc(l.name)}: ${esc(l.tagline || '')}</option>`).join(''); }
   let rows = act().filter(a => (!ft || a.tier === ft) && (!q || (a.name + ' ' + Object.keys(a.languages || {}).join(' ') + ' ' + a.signals.map(s => s.tech).join(' ') + ' ' + (a.brief?.hook || '')).toLowerCase().includes(q)));
-  rows.sort(fs === 'fit' ? (a, b) => b.icp - a.icp : fs === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.why_now * b.icp - a.why_now * a.icp);
+  const LF = {}; if (L) rows.forEach(a => LF[a.id] = lensFit(L, a));
+  rows.sort(L ? (a, b) => LF[b.id].score - LF[a.id].score : fs === 'fit' ? (a, b) => b.icp - a.icp : fs === 'name' ? (a, b) => a.name.localeCompare(b.name) : (a, b) => b.why_now * b.icp - a.why_now * a.icp);
+  $('#accTable thead tr').innerHTML = `<th>Company</th><th>Tier</th>${L ? `<th class="num" style="color:${esc(L.color)}">${esc(L.name)} fit</th>` : ''}<th class="num">Fit</th><th class="num">Why now</th><th>Hook</th>`;
   if (!selId || !rows.find(r => r.id === selId)) selId = rows[0]?.id;
-  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${originPill(a) ? ' ' + originPill(a) : ''}${['pending', 'queued', 'running'].includes(a.status) ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td><td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="5"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
+  $('#accTable tbody').innerHTML = rows.map(a => `<tr class="click ${a.id === selId ? 'sel' : ''}" data-id="${a.id}" tabindex="0"><td><span class="app-ic" style="background:${PAL[a.name.length % PAL.length]}">${initials(a.name)}</span><b style="color:#EEEDFF">${esc(a.name)}</b>${originPill(a) ? ' ' + originPill(a) : ''}${['pending', 'queued', 'running'].includes(a.status) ? ' <span class="spin" style="display:inline-block;vertical-align:-2px"></span>' : ''}</td><td><span class="pill ${a.tier}">${a.tier}</span></td>${L ? `<td class="num" style="font-weight:700;opacity:${LF[a.id].reasons.length ? 1 : .4}">${LF[a.id].reasons.length ? LF[a.id].score.toFixed(2) : '—'}</td>` : ''}<td class="num">${a.icp.toFixed(2)}</td><td class="num">${a.why_now.toFixed(2)}</td><td>${a.brief?.hook ? `<span class="pill hook">${a.brief.hook.replace('_', ' ')}</span>` : '<span class="sub">—</span>'}</td></tr>`).join('') || `<tr><td colspan="6"><div class="empty">No accounts yet. Add one on the Watchlist page.</div></td></tr>`;
   $$('#accTable tbody tr[data-id]').forEach(tr => { const f = () => { selId = tr.dataset.id; renderAccounts(); }; tr.onclick = f; tr.onkeydown = e => e.key === 'Enter' && f(); });
   renderDetail(rows.find(r => r.id === selId));
 }
@@ -998,6 +1089,7 @@ function renderDetail(a) {
       <span class="end"><span class="pill ${a.tier}">Tier ${a.tier}</span>${isLive && !a.demo ? `<button class="btn" id="refreshBtn">Refresh now</button>` : ''}</span></div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">${flags}</div>
     ${coverageHTML(a)}
+    ${lensCardHTML(a)}
     <div class="toolbar"><span class="sub">Opening line for</span><select id="persona" aria-label="Persona">${['VP Engineering', 'Platform Lead', 'DevOps Manager', 'Staff Engineer'].map(p => `<option ${p === a.persona ? 'selected' : ''}>${p}</option>`).join('')}</select>${b.hook ? `<span class="pill hook">${esc(b.hook.replace('_', ' '))}</span>` : ''}</div>
     ${b.opener ? `<div class="opener" id="openerBox"><span id="openerText">${esc(b.opener)}</span>${citeHTML(b.cites)}</div>
       <div class="toolbar"><button class="btn ok" data-fb="used_as_is">Use as is</button><button class="btn" id="editBtn">Edit</button><button class="btn" id="copyBtn">Copy</button><button class="btn bad" data-fb="rejected">Reject</button></div>`
@@ -1029,6 +1121,7 @@ function renderDetail(a) {
   $('#persona').onchange = async e => { if (!isLive) { toast('Persona saved for the next refresh (sample mode)'); return; } try { await rest(`watchlist?id=eq.${a.id}`, {method: 'PATCH', body: JSON.stringify({persona: e.target.value}), headers: {Prefer: 'return=minimal'}}); a.persona = e.target.value; toast('Saved. Refresh to rewrite the opener for a ' + e.target.value); } catch (err) { toast('Could not save: ' + err.message); } };
   $('#refreshBtn') && ($('#refreshBtn').onclick = () => refreshAccount(a));
   wireExtras(a, d);
+  wireLens(a);
   $$('[data-wrong]', d).forEach(bn => bn.onclick = async () => { try { await rest('overrides', {method: 'POST', body: JSON.stringify({account_id: a.id, tech: bn.dataset.wrong, forced_state: 'noise', note: 'Marked wrong by AE'}), headers: {Prefer: 'resolution=merge-duplicates,return=minimal'}}); await sendFeedback(a, 'edited_fact', null, true); toast(`${bn.dataset.wrong} will be ignored for ${a.name} from the next refresh on`); bn.disabled = true; } catch (err) { toast('Could not save: ' + err.message); } });
 }
 async function sendFeedback(a, action, edited = null, silent = false) {
@@ -1284,13 +1377,14 @@ function renderChecks() {
 
 /* ---------- routing ---------- */
 function go(v) { view = v; $$('.nav').forEach(n => { if (n.dataset.view === v) n.setAttribute('aria-current', 'page'); else n.removeAttribute('aria-current'); }); $$('.view').forEach(s => s.hidden = s.dataset.v !== v); $('#side').classList.remove('open'); render(); try { history.replaceState(null, '', '#' + v); } catch (e) {} window.scrollTo({top: 0}); }
-function render() { if (!M) return; if (view === 'dashboard') { renderDashboard(); renderOutCard(); } if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'checks') renderChecks(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
+function render() { if (!M) return; if (view === 'dashboard') { renderDashboard(); renderOutCard(); renderLensGrid(); } if (view === 'accounts') renderAccounts(); if (view === 'watchlist') renderWatchlist(); if (view === 'signals') renderSignals(); if (view === 'pipeline') renderPipeline(); if (view === 'prompts') renderChain(); if (view === 'about') renderAbout(); if (view === 'checks') renderChecks(); if (view === 'radar') renderRadar(); if (view === 'ask') renderAsk(); if (view === 'discover') renderDiscover(); if (view === 'settings') renderSettings(); $('#navCount').textContent = act().length; }
 $$('.nav').forEach(n => n.addEventListener('click', () => go(n.dataset.view)));
 document.addEventListener('click', e => { const g = e.target.closest('[data-go]'); if (g) go(g.dataset.go); });
 $('#burger').onclick = () => $('#side').classList.toggle('open');
 $$('#wsToggle [data-ws]').forEach(b => b.onclick = () => { if (b.dataset.ws === WS) return; WS = b.dataset.ws; try { localStorage.setItem('scout.ws', WS); } catch (e) {} try { const u = new URL(location.href); u.searchParams.set('workspace', WS); history.replaceState(null, '', u); } catch (e) {} selId = null; toast(WS === 'demo' ? 'Demo workspace: 20 fictional companies, 8 weeks of history' : 'Live workspace: real companies, refreshed weekly'); load(); });
 $('#q').addEventListener('input', () => { if (view !== 'accounts') go('accounts'); else renderAccounts(); });
 ['#fTier', '#fSort'].forEach(s => $(s).addEventListener('change', renderAccounts));
+$('#fLens').addEventListener('change', e => { lensPick(e.target.value); renderAccounts(); });
 document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); $('#q').focus(); } });
 $('#exportBtn').onclick = () => { const a = [...act()].sort((x, y) => y.why_now * y.icp - x.why_now * x.icp)[0]; if (!a?.brief) { toast('No brief yet'); return; } const txt = `${a.name}\n\n${(a.brief.summary || []).map(p => p.map(s => s.text).join(' ')).join('\n\n')}\n\nOpener: ${a.brief.opener || '—'}`; navigator.clipboard?.writeText(txt).then(() => toast(`Copied ${a.name}'s brief`), () => toast('Clipboard is blocked here')); };
 
@@ -1450,7 +1544,7 @@ $('#askForm').addEventListener('submit', async e => {
 
 /* ---------- settings ---------- */
 let setTab = 'profile';
-const TABS = [['profile', 'Seller profile'], ['tech', 'Technologies'], ['play', 'Hook playbooks'], ['src', 'Sources'], ['prompt', 'Writer prompt'], ['out', 'Outputs'], ['team', 'Team']];
+const TABS = [['profile', 'Seller profile'], ['tech', 'Technologies'], ['play', 'Hook playbooks'], ['src', 'Sources'], ['prompt', 'Writer prompt'], ['out', 'Outputs'], ['team', 'Team'], ['lens', 'Solution lenses']];
 const lines = t => String(t || '').split(/[\n,]+/).map(x => x.trim()).filter(Boolean);
 async function renderSettings() {
   $('#setTabs').innerHTML = TABS.map(([k, l]) => `<button class="btn" data-tab="${k}" aria-pressed="${k === setTab}">${l}</button>`).join('');
@@ -1458,7 +1552,7 @@ async function renderSettings() {
   const body = $('#setBody');
   if (M.mode !== 'live') { body.innerHTML = '<div class="note">Settings are stored in Supabase, so they are editable on the live deployment.</div>'; return; }
   body.innerHTML = '<span class="spin" style="display:inline-block"></span>';
-  try { await ({profile: setProfile, tech: setTech, play: setPlay, src: setSrc, prompt: setPrompt, out: setOut, team: setTeam})[setTab](body); } catch (e) { body.innerHTML = `<div class="note">Could not load: ${esc(e.message)}</div>`; }
+  try { await ({profile: setProfile, tech: setTech, play: setPlay, src: setSrc, prompt: setPrompt, out: setOut, team: setTeam, lens: setLens})[setTab](body); } catch (e) { body.innerHTML = `<div class="note">Could not load: ${esc(e.message)}</div>`; }
 }
 const jsonOr = (t, fb) => { try { return JSON.parse(t); } catch (e) { return fb; } };
 async function save(path, method, obj, ok) { try { await rest(path, {method, body: JSON.stringify(obj), headers: {Prefer: 'resolution=merge-duplicates,return=minimal'}}); toast(ok || 'Saved. Applies from the next refresh.'); return true; } catch (e) { toast('Could not save: ' + e.message); return false; } }

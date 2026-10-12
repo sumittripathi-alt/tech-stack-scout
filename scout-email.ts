@@ -1,4 +1,5 @@
 // Tech Stack Scout — send an outreach email through Resend, from inside the platform.
+// Same safety pattern as the Kargo hiring dashboard's lib/email.ts: RESEND_API_KEY, RESEND_FROM, EMAIL_OVERRIDE_TO (test routing) and ALLOWED_EMAIL_DOMAINS.
 // Only signed-in team members can call it. The API key lives in the RESEND_API_KEY Edge Function secret and never reaches the browser.
 // Every send is logged in the `outreach` table so replies can be tracked (sent -> replied -> meeting).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -39,16 +40,22 @@ Deno.serve(async (req) => {
     ]);
     if ((h1 ?? 0) >= 20 || (d1 ?? 0) >= 100) return J({ error: "Sending limit reached (20 an hour, 100 a day). Try again later.", code: "rate" }, 429);
 
+    const key2 = key.replace(/\s+/g, "");
+    const override = (Deno.env.get("EMAIL_OVERRIDE_TO") ?? "").trim();
+    const allowed = (Deno.env.get("ALLOWED_EMAIL_DOMAINS") ?? "").split(",").map((x) => x.trim().toLowerCase()).filter(Boolean);
+    let sendTo = addr; let sendBody = text;
+    if (override) { sendTo = override; sendBody += `\n\n---\n[Test routing: this email was addressed to ${addr}]`; }
+    else if (!allowed.includes((addr.split("@")[1] ?? "").toLowerCase())) return J({ error: `Refusing to email ${addr}: domain not in ALLOWED_EMAIL_DOMAINS (or set EMAIL_OVERRIDE_TO for test routing).`, code: "domain" }, 400);
     const from = Deno.env.get("RESEND_FROM") || "Tech Stack Scout <onboarding@resend.dev>";
     const r = await fetch("https://api.resend.com/emails", {
-      method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to: [addr], subject: subj, text, reply_to: who.email }),
+      method: "POST", headers: { Authorization: `Bearer ${key2}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to: [sendTo], subject: subj, text: sendBody, reply_to: who.email }),
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) return J({ error: `Resend refused the email: ${String(j?.message ?? j?.error ?? r.status).slice(0, 220)}`, code: "resend", status: r.status }, 502);
 
     const { data: b } = await SB.from("briefs").select("id,opener,hook_type").eq("account_id", account_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const { data: row } = await SB.from("outreach").insert({ account_id, brief_id: b?.id ?? null, hook_type: b?.hook_type ?? null, opener: b?.opener ?? null, channel: "email", to_email: addr, subject: subj, body: text, sent_by: who.email, resend_id: j?.id ?? null }).select("id").single();
-    return J({ ok: true, resend_id: j?.id ?? null, outreach_id: row?.id ?? null, from });
+    return J({ ok: true, resend_id: j?.id ?? null, outreach_id: row?.id ?? null, from, delivered_to: sendTo, test_routed: !!override });
   } catch (e) { return J({ error: String((e as Error).message ?? e) }, 500); }
 });
